@@ -17,7 +17,7 @@
 import subprocess
 import re
 
-VERSION = (0, 0, 2)
+VERSION = (0, 0, 3)
 __version__ = ".".join(str(x) for x in VERSION)
 
 # Try to provide human-readable version of latest commit for dev versions

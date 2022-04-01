@@ -26,6 +26,9 @@ If the property is unsafe the model checker may return a counterexample containi
 
 It is also possible to serialize the steps to VMT-LIB.
 
+## Installation
+To install the package run `python3 -m pip install pyvmt`.
+
 ## Configuration
 PyVmt currently supports 3 solvers:
 
@@ -33,7 +36,7 @@ PyVmt currently supports 3 solvers:
 - EUForia (https://github.com/dbueno/euforia)
 - nuXmv (https://nuxmv.fbk.eu/)
 
-To use any of these solvers, download or build their latest stable release. To use the nuXmv solver you will need a version that includes the command read_vmt_script.
+To use any of these solvers, download or build their latest stable release. The support for nuXmv is currently in development.
 
 After installing the solver you want to use, you must then configure an environment variable containing the path to the executable:
 
