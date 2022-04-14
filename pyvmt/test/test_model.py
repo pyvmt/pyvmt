@@ -328,6 +328,7 @@ class TestModel(TestCase):
 
         model.create_state_var('z', typing.REAL)
         self.assertEqual(model.get_logic(), QF_UFLIRA)
+        self.assertEqual(model.get_logic([Exists([y], And(Next(x), Equals(y, Int(0))))]), UFLIRA)
 
         model.add_trans(Exists([y], And(Next(x), Equals(y, Int(0)))))
         self.assertEqual(model.get_logic(), UFLIRA)

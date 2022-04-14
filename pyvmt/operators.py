@@ -244,7 +244,7 @@ class NextPusher(IdentityDagWalker):
 
     def __init__(self, bound_variables=None, env=None):
         super().__init__(env=env)
-        if bound_variables == None:
+        if bound_variables is None:
             bound_variables = set()
         self._bound_variables = bound_variables
 

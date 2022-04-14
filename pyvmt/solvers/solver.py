@@ -17,7 +17,9 @@
     Exports the base solver interface for a VMT problem
 '''
 
-class Solver:
+from abc import ABCMeta, abstractmethod
+
+class Solver(metaclass=ABCMeta):
     '''
         Interface for a solver for a VMT problem
     '''
@@ -121,6 +123,21 @@ class Solver:
         :type formula: pysmt.fnode.FNode
         '''
         raise NotImplementedError
+
+    @classmethod
+    @abstractmethod
+    def get_supported_logics(cls, options=None):
+        '''Returns a List containing the logics supported by the solver'''
+        raise NotImplementedError
+
+    @classmethod
+    def supports_logic(cls, logic, options=None):
+        '''Check if the solver supports a specific logic'''
+        supported_logics = cls.get_supported_logics(options=options)
+        for supported_logic in supported_logics:
+            if logic <= supported_logic:
+                return True
+        return False
 
 class Result:
     '''

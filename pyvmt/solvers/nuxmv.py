@@ -22,6 +22,7 @@ import re
 from subprocess import run, CalledProcessError
 from pathlib import Path
 import tempfile
+from pysmt.logics import LIA, LRA, QF_AUFBVLIRA, QF_AUFBV
 from pyvmt.solvers.solver import Solver, Result, Options
 from pyvmt import exceptions
 from pyvmt.properties import VmtProperty, LTL_PROPERTY, INVAR_PROPERTY, LIVE_PROPERTY
@@ -44,6 +45,9 @@ class NuxmvSolver(Solver):
         if not self._solver_path.is_file():
             raise exceptions.SolverNotFoundError(
                 f"NuXmv executable not found in {self._solver_path}")
+        if not self.supports_logic(self.model.get_logic()):
+            raise exceptions.NoLogicAvailableError(
+                "The model's logic is not supported by the solver")
 
     def check_properties(self):
         results_map = self.check_invar_properties()
@@ -63,6 +67,10 @@ class NuxmvSolver(Solver):
 
     def check_invar_property(self, formula):
         # FIXME the bmc interpolants algorithm cannot run with mixed LIA/LRA
+        if not self.supports_logic(self.model.get_logic(extra_formulae=[formula]),
+            options=self.options):
+            raise exceptions.NoLogicAvailableError(
+                "This logic is not supported by the solver")
         alg = self.options.get_algorithm()
         if alg == 'bmc':
             return self._check_invar_bmc(formula)
@@ -352,6 +360,14 @@ class NuxmvSolver(Solver):
         # range constant
         # symbolic constant
         return value
+
+    @classmethod
+    def get_supported_logics(cls, options=None):
+        if options is not None:
+            if options.get_bmc_invar_alg in [ NuxmvBmcInvarAlg.INTERP_SEQ,
+                NuxmvBmcInvarAlg.INTERPOLANTS ]:
+                return [ LIA, LRA, QF_AUFBV ]
+        return [ QF_AUFBVLIRA ]
 
 class NuxmvResult(Result):
     '''

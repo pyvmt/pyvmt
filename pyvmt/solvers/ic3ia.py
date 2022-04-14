@@ -23,6 +23,7 @@ from pathlib import Path
 from enum import Enum
 import re
 from pysmt.smtlib.parser.parser import Tokenizer, SmtLibParser
+from pysmt.logics import UFLIRA, QF_AUFBV
 from pyvmt.solvers.solver import Solver, Result, Options
 from pyvmt import exceptions
 from pyvmt.properties import LIVE_PROPERTY, INVAR_PROPERTY, LTL_PROPERTY, VmtProperty
@@ -51,6 +52,9 @@ class Ic3iaSolver(Solver):
         if not self._solver_path.is_file():
             raise exceptions.SolverNotFoundError(
                 f"Ic3ia executable not found in {self._solver_path}")
+        if not self.supports_logic(self.model.get_logic()):
+            raise exceptions.NoLogicAvailableError(
+                "The model's logic is not supported by the solver")
 
     def check_properties(self):
         results_map = self.check_invar_properties()
@@ -90,6 +94,10 @@ class Ic3iaSolver(Solver):
         return self.check_property(LTL_PROPERTY, formula)
 
     def check_property(self, property_type, formula):
+        if not self.supports_logic(self.model.get_logic(extra_formulae=[formula]),
+            options=self.options):
+            raise exceptions.NoLogicAvailableError(
+                "This logic is not supported by the solver")
         self.options.set_property_index(0)
         self.options.set_print_witness()
         args = [self._solver_path]
@@ -183,6 +191,10 @@ class Ic3iaSolver(Solver):
                     "Expected to read newline after assignment")
             trace.create_step(assignments)
         return trace
+
+    @classmethod
+    def get_supported_logics(cls, options=None):
+        return [ UFLIRA, QF_AUFBV ]
 
 class Ic3iaOptions(Options):
     '''

@@ -23,6 +23,7 @@ from pathlib import Path
 import re
 import tempfile
 from pysmt.smtlib.parser.parser import SmtLibParser
+from pysmt.logics import QF_AUFBV
 from pyvmt.solvers.solver import Solver, Result, Options
 from pyvmt import exceptions
 from pyvmt.properties import LIVE_PROPERTY, INVAR_PROPERTY, LTL_PROPERTY, VmtProperty
@@ -50,6 +51,10 @@ class EuforiaSolver(Solver):
         if not self._solver_path.is_file():
             raise exceptions.SolverNotFoundError(
                 f"EUForia executable not found in {self._solver_path}")
+        # check that the logic is supported by the solver
+        if not self.supports_logic(self.model.get_logic()):
+            raise exceptions.NoLogicAvailableError(
+                "The model's logic is not supported by the solver")
 
     def check_properties(self):
         '''Only Invar properties are supported by this solver, this function
@@ -67,6 +72,12 @@ class EuforiaSolver(Solver):
         return results_map
 
     def check_invar_property(self, formula):
+        # check that the logic is supported by the solver
+        if not self.supports_logic(self.model.get_logic(extra_formulae=[formula]),
+            options=self.options):
+            raise exceptions.NoLogicAvailableError(
+                "This logic is not supported by the solver")
+
         # write model to temporary file
         with tempfile.NamedTemporaryFile('w') as out_file:
             self.model.serialize(out_file, properties={ 0: VmtProperty(INVAR_PROPERTY, formula) })
@@ -160,6 +171,10 @@ class EuforiaSolver(Solver):
             return self.check_ltl_property(formula)
         raise exceptions.InvalidPropertyTypeError(
             f"Invalid property type {property_type}")
+
+    @classmethod
+    def get_supported_logics(cls, options=None):
+        return [ QF_AUFBV ]
 
 class EuforiaResult(Result):
     '''Class to store the result from the Euforia solver

@@ -459,9 +459,14 @@ class Model:
         mgr = self.get_env().formula_manager
         return mgr.Next(formula)
 
-    def get_theory(self):
-        '''
-            Get the theory for the whole model.
+    def get_theory(self, extra_formulae=None):
+        '''Get the theory for the whole model, curently ignores properties.
+
+        :param extra_formulae: Extra formulae to add, can be used to check the theory
+            for the model with the properties, defaults to None
+        :type extra_formulae: Iterable[pysmt.fnode.FNode], optional
+        :return: The theory for the model.
+        :rtype: pysmt.logics.Theory
         '''
         #TODO should this deal with properties as well?
         theoryo = self.get_env().theoryo
@@ -471,6 +476,8 @@ class Model:
             *self.get_input_vars(),
             *self.get_state_vars()
         ]
+        if extra_formulae is not None:
+            all_formulae.extend(extra_formulae)
         theory_out = Theory()
 
         for formula in all_formulae:
@@ -478,17 +485,24 @@ class Model:
             theory_out = theory_out.combine(formula_th)
         return theory_out
 
-    def get_logic(self):
-        '''
-            Get the closest pysmt logic to the model's logic
+    def get_logic(self, extra_formulae=None):
+        '''Get the closest pysmt logic for the whole model, curently ignores properties.
+
+        :param extra_formulae: Extra formulae to add, can be used to check the logic
+            for the model with the properties, defaults to None
+        :type extra_formulae: Iterable[pysmt.fnode.FNode], optional
+        :return: The theory for the model.
+        :rtype: pysmt.logics.Theory
         '''
         #TODO should this deal with properties as well?
         qfo = self.get_env().qfo
 
         is_qf = qfo.is_qf(self.get_init_constraint()) and \
                 qfo.is_qf(self.get_trans_constraint())
+        if extra_formulae is not None:
+            is_qf = is_qf and all(qfo.is_qf(x) for x in extra_formulae)
 
-        theory = self.get_theory()
+        theory = self.get_theory(extra_formulae=extra_formulae)
         logic = Logic("Detected Model Logic", "", quantifier_free=is_qf, theory=theory)
         return get_closer_pysmt_logic(logic)
 

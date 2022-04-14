@@ -151,3 +151,8 @@ class SolverNotFoundError(PyvmtException):
     '''
         Raised when a solver is not found at the specified path.
     '''
+
+class NoLogicAvailableError(PyvmtException):
+    '''
+        Raised when no logic is available for a solver.
+    '''
