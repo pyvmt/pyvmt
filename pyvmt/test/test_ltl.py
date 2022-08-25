@@ -16,14 +16,17 @@
 '''Test the LTL operators of PyVmt
 '''
 
+from io import StringIO
 import sys
 from unittest import TestCase
 import pytest
-from io import StringIO
-from pysmt.shortcuts import Symbol, Iff, And
+from pysmt.shortcuts import Symbol, Iff, And, Or, Not, TRUE
+from pyvmt.shortcuts import Next, F, X, G, U, R
 from pyvmt.environment import reset_env, get_env
-from pyvmt.operators import HasLtlOperatorsWalker
+from pyvmt.operators import HasLtlOperatorsWalker, NNFIzer
 from pyvmt.vmtlib.printers import VmtPrinter, VmtDagPrinter
+from pyvmt.model import Model
+from pyvmt.ltl_encoder import ltl_encode, LtlEncodingWalker, LtlRewriter
 
 class TestLtl(TestCase):
     '''
@@ -85,6 +88,98 @@ class TestLtl(TestCase):
         self.assertEqual(mgr.G(x).serialize(), '(G x)')
         self.assertEqual(mgr.U(x, y).serialize(), '(x U y)')
         self.assertEqual(mgr.R(x, y).serialize(), '(x R y)')
+
+    def test_nnfizer(self):
+        '''Test the NNFizer for the LTL operators'''
+        mgr = get_env().formula_manager
+        walker = NNFIzer()
+        a = Symbol('a')
+        b = Symbol('b')
+        c = Symbol('c')
+        f = And(a, Next(b))
+        g = Or(a, c)
+        negated_f = Or(Not(a), Next(Not(b)))
+        negated_g = And(Not(a), Not(c))
+        self.assertEqual(walker.convert(mgr.Not(mgr.X(f))),
+            mgr.X(negated_f))
+        self.assertEqual(walker.convert(mgr.Not(mgr.G(f))),
+            mgr.F(negated_f))
+        self.assertEqual(walker.convert(mgr.Not(mgr.G(f))),
+            mgr.F(negated_f))
+        self.assertEqual(walker.convert(mgr.Not(mgr.U(f, g))),
+            mgr.R(negated_f, negated_g))
+        self.assertEqual(walker.convert(mgr.Not(mgr.R(f, g))),
+            mgr.U(negated_f, negated_g))
+
+    def test_ltl_rewriter(self):
+        '''Test that the LTL rewriter works correctly'''
+        rewriter = LtlRewriter()
+        x = Symbol('x')
+        y = Symbol('y')
+        z = Symbol('z')
+        f = And(x, y)
+        self.assertEqual(rewriter.rewrite(X(f)), X(f))
+        self.assertEqual(rewriter.rewrite(U(z, f)), U(z, f))
+        self.assertEqual(rewriter.rewrite(R(z, f)),
+            Not(U(Not(z), Not(f)))
+        )
+        self.assertEqual(rewriter.rewrite(F(f)), U(TRUE(), f))
+        self.assertEqual(rewriter.rewrite(G(f)), Not(U(TRUE(), Not(f))))
+
+    def test_ltl_encoding_walker(self):
+        '''Test the LtlEncodingWalker, check the elementary subformulae and sat values'''
+        x = Symbol('x')
+        y = Symbol('y')
+        z = Symbol('z')
+        el1 = X(And(x, y))
+        el0 = U(x, z)
+        f = And(el1, el0)
+        walker = LtlEncodingWalker(f)
+        el = walker.get_el_map()
+        self.assertSetEqual(set(el), { el1, X(el0) })
+
+        self.assertEqual(walker.get_sat(el0),
+            Or(z, And(x, el[X(el0)])))
+        self.assertEqual(walker.get_sat(el1.arg(0)),
+            And(x, y))
+
+    def test_ltl_encode(self):
+        '''Test the ltl encoding procedure'''
+        x = Symbol('x')
+        y = Symbol('y')
+        z = Symbol('z')
+        el0 = U(x, z)
+        el1 = X(And(x, y))
+        f = And(el1, el0)
+
+        model = Model()
+        model.add_state_var(x)
+        model.add_state_var(y)
+        model.add_state_var(z)
+        new_model = ltl_encode(model, f)
+
+        el_u_0 = Symbol('el_u_0')
+        el_x_1 = Symbol('el_x_1')
+
+        self.assertSetEqual(set(new_model.get_trans_constraints()),
+            set([
+                Iff(
+                    el_u_0,
+                    Next(Or(z, And(x, el_u_0)))
+                ),
+                Iff(
+                    el_x_1,
+                    Next(And(x, y))
+                )
+            ]))
+        self.assertSetEqual(set(new_model.get_init_constraints()),
+            set([
+                Not(And(el_x_1, Or(z, And(x, el_u_0))))
+            ])
+        )
+        self.assertEqual(new_model.get_live_properties()[0].formula,
+            Or(Not(Or(z, And(x, el_u_0))) , z))
+        new_model.get_live_properties()
 
 if __name__ == '__main__':
     pytest.main(sys.argv)
