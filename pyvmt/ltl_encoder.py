@@ -17,8 +17,10 @@
     Classes and functions used to encode an LTL property.
 '''
 from pysmt.walkers import handles, IdentityDagWalker
-from pyvmt.operators import LTL_F, LTL_G, LTL_R, LTL_U
+import pysmt.operators as op
+from pyvmt.operators import LTL_F, LTL_G, LTL_R, LTL_U, ALL_LTL, NNFIzer
 from pyvmt.model import Model
+from pyvmt import exceptions
 
 # pylint: disable=unused-argument
 
@@ -166,3 +168,40 @@ def ltl_encode(model, formula):
         new_model.add_live_property(justice[0])
 
     return new_model
+
+# LTL circuit encoder
+
+class LtlCircuitEncodingWalker(IdentityDagWalker):
+    '''Walker to facilitate the LTL circuit encoding procedure.
+
+    Visits the formula and extracts subformulae, reconstructs the formula
+    with newly created symbols.
+    '''
+    def __init__(self, formula, env=None):
+        super().__init__(env=env)
+        self._formula = formula
+        self._subformulae = []
+
+    def get_subformulae(self):
+        '''Run the encoder and get the resulting subformulae.
+
+        :return: The list of tuples containing the labels and the subformulae they represent.
+        :rtype: [( pysmt.fnode.FNode: pysmt.fnode.FNode )]
+        '''
+        # Run the encoder if it wasn't already done
+        if len(self.memoization) == 0:
+            self.walk(self._formula)
+            if len(self._subformulae) == 0:
+                # Create a subformula to have at least one monitor
+                self.store_subformula(
+                    self.mgr.And(self._formula, self.mgr.TRUE()),
+                    [ self._formula, self.mgr.TRUE() ]
+                )
+        return self._subformulae
+
+    @handles(*ALL_LTL, op.AND, op.OR)
+    def store_subformula(self, formula, args, **kwargs):
+        formula = IdentityDagWalker.super(self, formula, args, **kwargs)
+        z = self.mgr.FreshSymbol(template='LTL.Z.%d')
+        self._subformulae.append((z, formula))
+        return z

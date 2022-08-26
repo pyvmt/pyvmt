@@ -316,18 +316,12 @@ class NNFIzer(pysmt.rewritings.NNFizer):
         mgr = self.mgr
         if formula.is_not():
             s = formula.arg(0)
-            if s.node_type() == LTL_X:
+            if s.node_type() in (LTL_X, LTL_G, LTL_F, NEXT):
                 return [mgr.Not(s.arg(0))]
-            if s.node_type() == LTL_G:
-                return [mgr.Not(s.arg(0))]
-            if s.node_type() == LTL_F:
-                return [mgr.Not(s.arg(0))]
-            if s.node_type() == LTL_U:
+            if s.node_type() in (LTL_U, LTL_R):
                 return [mgr.Not(s.arg(0)), mgr.Not(s.arg(1))]
-            if s.node_type() == LTL_R:
-                return [mgr.Not(s.arg(0)), mgr.Not(s.arg(1))]
-            if s.node_type() == NEXT:
-                return [mgr.Not(s.arg(0))]
+        elif formula.node_type() in (*ALL_LTL, NEXT):
+            return formula.args()
         return super()._get_children(formula)
 
     def walk_not(self, formula, args, **kwargs):
@@ -345,3 +339,7 @@ class NNFIzer(pysmt.rewritings.NNFizer):
         if s.node_type() == NEXT:
             return self.mgr.Next(args[0])
         return super().walk_not(formula, args, **kwargs)
+
+    @handles(*ALL_LTL, NEXT)
+    def walk_other(self, formula, args, **kwargs):
+        return IdentityDagWalker.super(self, formula, args, **kwargs)

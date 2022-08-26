@@ -26,7 +26,7 @@ from pyvmt.environment import reset_env, get_env
 from pyvmt.operators import HasLtlOperatorsWalker, NNFIzer
 from pyvmt.vmtlib.printers import VmtPrinter, VmtDagPrinter
 from pyvmt.model import Model
-from pyvmt.ltl_encoder import ltl_encode, LtlEncodingWalker, LtlRewriter
+from pyvmt.ltl_encoder import ltl_encode, LtlEncodingWalker, LtlRewriter, LtlCircuitEncodingWalker
 
 class TestLtl(TestCase):
     '''
@@ -110,6 +110,12 @@ class TestLtl(TestCase):
             mgr.R(negated_f, negated_g))
         self.assertEqual(walker.convert(mgr.Not(mgr.R(f, g))),
             mgr.U(negated_f, negated_g))
+        for wrapper in [mgr.F, mgr.G, mgr.X, mgr.Next]:
+            self.assertEqual(walker.convert(wrapper(mgr.Not(g))),
+                wrapper(negated_g))
+        for wrapper in [mgr.U, mgr.R]:
+            self.assertEqual(walker.convert(wrapper(mgr.Not(f), mgr.Not(g))),
+                wrapper(negated_f, negated_g))
 
     def test_ltl_rewriter(self):
         '''Test that the LTL rewriter works correctly'''
@@ -180,6 +186,36 @@ class TestLtl(TestCase):
         self.assertEqual(new_model.get_live_properties()[0].formula,
             Or(Not(Or(z, And(x, el_u_0))) , z))
         new_model.get_live_properties()
+
+    def test_circuit_encoding_walker(self):
+        '''Test that the circuit encoding walker produces the correct subformulae
+        '''
+        x = Symbol('x')
+        y = Symbol('y')
+        z = Symbol('z')
+        f = G(X(And(x, Or(y, z))))
+        walker = LtlCircuitEncodingWalker(f)
+        subformulae = walker.get_subformulae()
+        lbls = [x for x, _ in subformulae]
+        self.assertListEqual(subformulae, [
+            ( lbls[0], Or(y, z), ),
+            ( lbls[1], And(x, lbls[0]), ),
+            ( lbls[2], X(lbls[1]) ),
+            ( lbls[3], G(lbls[2]) ),
+        ])
+
+    def test_circuit_encoding_no_subformulae(self):
+        '''Test the special case in which the circuit encoding walker does not find
+            any subformulae
+        '''
+        x = Symbol('x')
+        walker = LtlCircuitEncodingWalker(x)
+        for _ in range(2):
+            # running the function twice must not change the result
+            subformulae = walker.get_subformulae()
+            self.assertListEqual(subformulae, [
+                ( Symbol('LTL.Z.0'), And(x, TRUE()), ),
+            ])
 
 if __name__ == '__main__':
     pytest.main(sys.argv)
