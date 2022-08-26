@@ -20,7 +20,7 @@ from io import StringIO
 import sys
 from unittest import TestCase
 import pytest
-from pysmt.shortcuts import Symbol, Iff, And, Or, Not, TRUE
+from pysmt.shortcuts import Symbol, Iff, And, Or, Not, TRUE, FALSE
 from pyvmt.shortcuts import Next, F, X, G, U, R
 from pyvmt.environment import reset_env, get_env
 from pyvmt.operators import HasLtlOperatorsWalker, NNFIzer
@@ -216,6 +216,93 @@ class TestLtl(TestCase):
             self.assertListEqual(subformulae, [
                 ( Symbol('LTL.Z.0'), And(x, TRUE()), ),
             ])
+
+    def test_monitors(self):
+        '''Test that the generation of monitors for LTL circuit encoder is correct'''
+        x = Symbol('x')
+        y = Symbol('y')
+        z = Symbol('z')
+        f = R(U(F(G(X(And(x, Or(y, z))))), y), z)
+        is_init = Symbol('is_init')
+        walker = LtlCircuitEncodingWalker(f)
+        subformulae = walker.get_subformulae()
+        subf_map = dict(subformulae)
+        lbls = list(subf_map.keys())
+
+        # Or
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, lbls[0], subf_map[lbls[0]])
+        self.assertListEqual(stvars, [])
+        self.assertListEqual(init, [])
+        self.assertListEqual(trans, [])
+        self.assertEqual(accept, TRUE())
+        self.assertEqual(failed, And(lbls[0], Not(Or(y, z))))
+        self.assertEqual(pending, FALSE())
+
+        # And
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, lbls[1], subf_map[lbls[1]])
+        self.assertListEqual(stvars, [])
+        self.assertListEqual(init, [])
+        self.assertListEqual(trans, [])
+        self.assertEqual(accept, TRUE())
+        self.assertEqual(failed, And(lbls[1], Not(And(x, lbls[0]))))
+        self.assertEqual(pending, FALSE())
+
+        # LTL.X
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, lbls[2], subf_map[lbls[2]])
+        self.assertEqual(len(stvars), 1)
+        yz = stvars[0]
+        self.assertListEqual(init, [Not(yz)])
+        self.assertListEqual(trans, [Iff(Next(yz), lbls[2])])
+        self.assertEqual(accept, TRUE())
+        self.assertEqual(failed, And(yz, Not(lbls[1])))
+        self.assertEqual(pending, lbls[2])
+
+        # LTL.G
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, lbls[3], subf_map[lbls[3]])
+        self.assertEqual(len(stvars), 1)
+        y_pending = stvars[0]
+        self.assertListEqual(init, [Not(y_pending)])
+        self.assertListEqual(trans, [Iff(Next(y_pending), pending)])
+        self.assertEqual(accept, TRUE())
+        self.assertEqual(failed, And(pending, Not(lbls[2])))
+        self.assertEqual(pending, Or(y_pending, lbls[3]))
+
+        # LTL.F
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, lbls[4], subf_map[lbls[4]])
+        self.assertEqual(len(stvars), 1)
+        y_pending = stvars[0]
+        self.assertListEqual(init, [Not(y_pending)])
+        self.assertListEqual(trans, [Iff(Next(y_pending), pending)])
+        self.assertEqual(pending, And(Or(lbls[4], y_pending), Not(lbls[3])))
+        self.assertEqual(accept, Not(pending))
+        self.assertEqual(failed, FALSE())
+
+        # LTL.U
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, lbls[5], subf_map[lbls[5]])
+        self.assertEqual(len(stvars), 1)
+        y_pending = stvars[0]
+        self.assertListEqual(init, [Not(y_pending)])
+        self.assertListEqual(trans, [Iff(Next(y_pending), pending)])
+        self.assertEqual(pending, And(Or(lbls[5], y_pending), Not(y)))
+        self.assertEqual(accept, Not(pending))
+        self.assertEqual(failed, And(pending, Not(lbls[4])))
+
+        # LTL.R
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, lbls[6], subf_map[lbls[6]])
+        self.assertEqual(len(stvars), 1)
+        y_pending = stvars[0]
+        self.assertListEqual(init, [Not(y_pending)])
+        self.assertListEqual(trans, [Iff(Next(y_pending), pending)])
+        self.assertEqual(pending, And(Or(lbls[6], y_pending), Not(lbls[5])))
+        self.assertEqual(accept, Not(pending))
+        self.assertEqual(failed, And(pending, Not(z)))
 
 if __name__ == '__main__':
     pytest.main(sys.argv)

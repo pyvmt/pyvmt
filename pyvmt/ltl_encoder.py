@@ -18,9 +18,10 @@
 '''
 from pysmt.walkers import handles, IdentityDagWalker
 import pysmt.operators as op
-from pyvmt.operators import LTL_F, LTL_G, LTL_R, LTL_U, ALL_LTL, NNFIzer
+from pyvmt.operators import LTL_X, LTL_F, LTL_G, LTL_R, LTL_U, ALL_LTL, NNFIzer
 from pyvmt.model import Model
 from pyvmt import exceptions
+from pyvmt.environment import get_env
 
 # pylint: disable=unused-argument
 
@@ -109,6 +110,33 @@ def _copy_model(model):
     for init in model.get_init_constraints():
         new_model.add_init(init)
     return new_model
+
+def make_single_justice(justice, env=None):
+    if env is None:
+        env = get_env()
+    mgr = env.formula_manager
+
+    stvars = []
+    init = []
+    trans = []
+    for just in justice:
+        # add a state variable for each justice, initialized at 0
+        just_stvar = mgr.FreshSymbol(template='J_%d')
+        stvars.append(just_stvar)
+        init.append(mgr.Iff(just_stvar, mgr.FALSE()))
+    accept = mgr.And(stvars)
+
+    for i, just in enumerate(justice):
+        # add a transition constraint for each justice state variable
+        # once every justice is verified reset the state variables
+        just_stvar = stvars[i]
+        trans.append(
+            mgr.Iff(
+                mgr.Next(just_stvar),
+                mgr.Ite(accept, just, mgr.Or(just, just_stvar))
+            )
+        )
+    return accept, stvars, init, trans
 
 def ltl_encode(model, formula):
     '''Encodes an ltl property into a model and returns the new model
@@ -205,3 +233,129 @@ class LtlCircuitEncodingWalker(IdentityDagWalker):
         z = self.mgr.FreshSymbol(template='LTL.Z.%d')
         self._subformulae.append((z, formula))
         return z
+
+    def make_monitor (self, is_init, activator, formula):
+        '''Creates a monitor for the passed formula.
+
+        :param is_init: A variable which is True in the first step, False otherwise
+        :type is_init: pysmt.fnode.FNode
+        :param activator: The activator for the monitor, corresponding to variable z
+        :type activator: pysmt.fnode.FNode
+        :param formula: The formula for which to create the monitor
+        :type formula: pysmt.fnode.FNode
+        '''
+        mgr = self.mgr
+        stvars = []
+        init = []
+        trans = []
+        accept = mgr.TRUE()
+        failed = mgr.FALSE()
+        pending = mgr.FALSE()
+
+        if formula.is_and() or formula.is_or():
+            failed = mgr.And(activator, mgr.Not(formula))
+        elif formula.node_type() == LTL_X:
+            yz = mgr.FreshSymbol(template='LTL.X.YZ.%d')
+            stvars.append(yz)
+            pending = activator
+            failed = mgr.And(yz, mgr.Not(formula.arg(0)))
+            init.append(mgr.Not(yz))
+            trans.append(mgr.Iff(mgr.Next(yz), activator))
+        elif formula.node_type() == LTL_G:
+            y_pending = mgr.FreshSymbol(template='LTL.G.YP.%d')
+            stvars.append(y_pending)
+            pending = mgr.Or(y_pending, activator)
+            failed = mgr.And(pending, mgr.Not(formula.arg(0)))
+            init.append(mgr.Not(y_pending))
+            trans.append(mgr.Iff(mgr.Next(y_pending), pending))
+        elif formula.node_type() == LTL_F:
+            y_pending = mgr.FreshSymbol(template='LTL.F.YP.%d')
+            stvars.append(y_pending)
+            pending = mgr.And(mgr.Or(activator, y_pending), mgr.Not(formula.arg(0)))
+            accept = mgr.Not(pending)
+            init.append(mgr.Not(y_pending))
+            trans.append(mgr.Iff(mgr.Next(y_pending), pending))
+        elif formula.node_type() == LTL_U:
+            y_pending = mgr.FreshSymbol(template='LTL.U.YP.%d')
+            stvars.append(y_pending)
+            pending = mgr.And(mgr.Or(activator, y_pending), mgr.Not(formula.arg(1)))
+            accept = mgr.Not(pending)
+            failed = mgr.And(pending, mgr.Not(formula.arg(0)))
+            init.append(mgr.Not(y_pending))
+            trans.append(mgr.Iff(mgr.Next(y_pending), pending))
+        elif formula.node_type() == LTL_R:
+            y_pending = mgr.FreshSymbol(template='LTL.R.YP.%d')
+            stvars.append(y_pending)
+            pending = mgr.And(mgr.Or(activator, y_pending), mgr.Not(formula.arg(0)))
+            accept = mgr.Not(pending)
+            failed = mgr.And(pending, mgr.Not(formula.arg(1)))
+            init.append(mgr.Not(y_pending))
+            trans.append(mgr.Iff(mgr.Next(y_pending), pending))
+        else:
+            raise NotImplementedError(
+                f"Cannot create monitor for formula {formula}")
+        return stvars, init, trans, accept, failed, pending
+
+def ltl_circuit_encode (model, formula):
+    '''_summary_
+
+    :param model: _description_
+    :type model: pyvmt.model.Model
+    :param formula: _description_
+    :type formula: pysmt.fnode.FNode
+    '''
+    model = _copy_model(model)
+    env = model.get_env()
+    mgr = env.formula_manager
+
+    # convert the formula to NNF
+    formula = mgr.Not(formula)
+    formula = NNFIzer(environment=env).convert(formula)
+
+    # find the subformulae
+    walker = LtlCircuitEncodingWalker(formula)
+    subf = walker.get_subformulae()
+
+    is_init = mgr.FreshSymbol(template='is_init.%d')
+    all_accept = []
+    all_failed = []
+    all_pending = []
+
+    # replace the initial activator with is_init
+    subf[len(subf) - 1] = ( is_init, subf[len(subf) - 1][1] )
+    for activator, _ in subf:
+        model.add_state_var(activator)
+    model.add_init(is_init)
+    model.add_trans(mgr.Iff(mgr.Next(is_init), mgr.FALSE()))
+
+    # create the required monitors
+    for activator, subformula in subf:
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, activator, subformula)
+        for f in stvars:
+            model.add_state_var(f)
+        for f in init:
+            model.add_init(f)
+        for f in trans:
+            model.add_trans(f)
+        all_accept.append(accept)
+        all_failed.append(failed)
+        all_pending.append(pending)
+
+    has_failed = mgr.FreshSymbol(template='has_failed.%d')
+    model.add_state_var(has_failed)
+    model.add_init(mgr.Not(has_failed))
+    model.add_trans(mgr.Iff(mgr.Next(has_failed), mgr.Or(*all_failed, has_failed)))
+
+    accept, stvars, init, trans = make_single_justice(
+        [mgr.And(f, mgr.Not(has_failed)) for f in all_accept]
+    )
+    for f in stvars:
+        model.add_state_var(f)
+    for f in init:
+        model.add_init(f)
+    for f in trans:
+        model.add_trans(f)
+
+    model.add_live_property(accept)
+    return model
