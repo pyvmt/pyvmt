@@ -460,7 +460,7 @@ class Model:
         return mgr.Next(formula)
 
     def get_theory(self, extra_formulae=None):
-        '''Get the theory for the whole model, curently ignores properties.
+        '''Get the theory for the whole model, currently ignores properties.
 
         :param extra_formulae: Extra formulae to add, can be used to check the theory
             for the model with the properties, defaults to None
@@ -486,7 +486,7 @@ class Model:
         return theory_out
 
     def get_logic(self, extra_formulae=None):
-        '''Get the closest pysmt logic for the whole model, curently ignores properties.
+        '''Get the closest pysmt logic for the whole model, currently ignores properties.
 
         :param extra_formulae: Extra formulae to add, can be used to check the logic
             for the model with the properties, defaults to None

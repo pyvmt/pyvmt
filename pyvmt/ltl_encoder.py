@@ -20,7 +20,6 @@ from pysmt.walkers import handles, IdentityDagWalker
 import pysmt.operators as op
 from pyvmt.operators import LTL_X, LTL_F, LTL_G, LTL_R, LTL_U, ALL_LTL, NNFIzer
 from pyvmt.model import Model
-from pyvmt import exceptions
 from pyvmt.environment import get_env
 
 # pylint: disable=unused-argument
@@ -112,6 +111,18 @@ def _copy_model(model):
     return new_model
 
 def make_single_justice(justice, env=None):
+    '''Transforms a list of justice constraints into a single one encapsulating
+    all of them.
+
+    :param justice: The list of justice constraints
+    :type justice: [pysmt.fnode.FNode]
+    :param env: The environment to use, defaults to the global environment
+    :type env: pyvmt.environment.Environment, optional
+    :return: The new property, the variables used and how they're constrained
+        (accept, stvars, init, trans)
+    :rtype: (pysmt.fnode.FNode, [pysmt.fnode.FNode], [pysmt.fnode.FNode], \
+        [pysmt.fnode.FNode])
+    '''
     if env is None:
         env = get_env()
     mgr = env.formula_manager
@@ -145,6 +156,8 @@ def ltl_encode(model, formula):
     :type model: pyvmt.model.Model
     :param prop: The property to encode, must be of type LTL
     :type prop: pyvmt.properties.Property
+    :return: A new model with the added live property at index 0
+    :rtype: pyvmt.model.Model
     '''
     env = model.get_env()
     mgr = env.formula_manager
@@ -243,6 +256,10 @@ class LtlCircuitEncodingWalker(IdentityDagWalker):
         :type activator: pysmt.fnode.FNode
         :param formula: The formula for which to create the monitor
         :type formula: pysmt.fnode.FNode
+        :return: A tuple containing the data for the monitor
+            (stvars, init, trans, accept, failed, pending)
+        :rtype: ([pysmt.fnode.FNode], [pysmt.fnode.FNode], [pysmt.fnode.FNode], \
+            pysmt.fnode.FNode, pysmt.fnode.FNode, pysmt.fnode.FNode)
         '''
         mgr = self.mgr
         stvars = []
@@ -297,12 +314,14 @@ class LtlCircuitEncodingWalker(IdentityDagWalker):
         return stvars, init, trans, accept, failed, pending
 
 def ltl_circuit_encode (model, formula):
-    '''_summary_
+    '''Encodes an ltl property into a model by adding monitor circuits and returns the new model
 
-    :param model: _description_
+    :param model: The model on which to encode the property
     :type model: pyvmt.model.Model
-    :param formula: _description_
-    :type formula: pysmt.fnode.FNode
+    :param prop: The property to encode, must be of type LTL
+    :type prop: pyvmt.properties.Property
+    :return: A new model with the added live property at index 0
+    :rtype: pyvmt.model.Model
     '''
     model = _copy_model(model)
     env = model.get_env()
@@ -357,5 +376,5 @@ def ltl_circuit_encode (model, formula):
     for f in trans:
         model.add_trans(f)
 
-    model.add_live_property(accept)
+    model.add_live_property(mgr.Not(accept))
     return model
