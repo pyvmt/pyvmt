@@ -162,53 +162,36 @@ def ltl_encode(model, formula):
     env = model.get_env()
     mgr = env.formula_manager
     # rewrite the formula in terms of X and U operators
-    rewriter = LtlRewriter(env=model.get_env())
-    formula = rewriter.rewrite(mgr.Not(formula))
+    formula = LtlRewriter(env=model.get_env()).rewrite(mgr.Not(formula))
 
     # get the elementary subformulae
     el_walker = LtlEncodingWalker(formula, env=model.get_env())
     el_map = el_walker.get_el_map()
 
     # create a new model with the same variables and constraints
-    new_model = _copy_model(model)
+    model = _copy_model(model)
     justice = []
     for el_, stvar in el_map.items():
         # add variables for the tableau
-        new_model.add_state_var(stvar)
+        model.add_state_var(stvar)
         sat = el_walker.get_sat(el_.arg(0))
         # define how the variables evolve
-        new_model.add_trans(mgr.EqualsOrIff(stvar, mgr.Next(sat)))
+        model.add_trans(mgr.EqualsOrIff(stvar, mgr.Next(sat)))
         if el_.arg(0).node_type() == LTL_U:
             # add the required justice
             justice.append(mgr.Or(mgr.Not(sat), el_walker.get_sat(el_.arg(0).arg(1))))
-    new_model.add_init(el_walker.get_sat(formula))
+    model.add_init(el_walker.get_sat(formula))
 
-    if len(justice) != 1:
-        # make single justice
-        just_stvars = {}
-        for just in justice:
-            # add a state variable for each justice, initialized at 0
-            just_stvar = mgr.FreshSymbol(template='J_%d')
-            just_stvars[just] = just_stvar
-            new_model.add_state_var(just_stvar)
-            new_model.add_init(mgr.Iff(just_stvar, mgr.FALSE()))
-        accept = mgr.And(just_stvars.values())
+    accept, stvars, init, trans = make_single_justice(justice)
+    for f in stvars:
+        model.add_state_var(f)
+    for f in init:
+        model.add_init(f)
+    for f in trans:
+        model.add_trans(f)
 
-        for just in justice:
-            # add a transition constraint for each justice state variable
-            # once every justice is verified reset the state variables
-            just_stvar = just_stvars[just]
-            new_model.add_trans(
-                mgr.Iff(
-                    mgr.Next(just_stvar),
-                    mgr.Ite(accept, just, mgr.Or(just, just_stvar))
-                )
-            )
-        new_model.add_live_property(mgr.Not(accept))
-    else:
-        new_model.add_live_property(justice[0])
-
-    return new_model
+    model.add_live_property(mgr.Not(accept))
+    return model
 
 # LTL circuit encoder
 
@@ -227,7 +210,7 @@ class LtlCircuitEncodingWalker(IdentityDagWalker):
         '''Run the encoder and get the resulting subformulae.
 
         :return: The list of tuples containing the labels and the subformulae they represent.
-        :rtype: [( pysmt.fnode.FNode: pysmt.fnode.FNode )]
+        :rtype: [( pysmt.fnode.FNode, pysmt.fnode.FNode )]
         '''
         # Run the encoder if it wasn't already done
         if len(self.memoization) == 0:
