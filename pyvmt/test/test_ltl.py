@@ -167,7 +167,7 @@ class TestLtl(TestCase):
         el_u_0 = Symbol('el_u_0')
         el_x_1 = Symbol('el_x_1')
 
-        self.assertSetEqual(set(new_model.get_trans_constraints()),
+        self.assertSetEqual(set(new_model.get_trans_constraints()[0:2]),
             set([
                 Iff(
                     el_u_0,
@@ -178,13 +178,13 @@ class TestLtl(TestCase):
                     Next(And(x, y))
                 )
             ]))
-        self.assertSetEqual(set(new_model.get_init_constraints()),
+        self.assertSetEqual(set(new_model.get_init_constraints()[0:1]),
             set([
                 Not(And(el_x_1, Or(z, And(x, el_u_0))))
             ])
         )
         self.assertEqual(new_model.get_live_properties()[0].formula,
-            Or(Not(Or(z, And(x, el_u_0))) , z))
+            Not(Symbol('J_2')))
         new_model.get_live_properties()
 
     def test_circuit_encoding_walker(self):
