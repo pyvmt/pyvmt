@@ -17,6 +17,7 @@
     Exports a reader for VMT-LIB scripts
 '''
 
+import pysmt.exceptions
 from pyvmt.vmtlib.parser import VmtLibParser
 from pyvmt.environment import get_env
 from pyvmt.model import Model
@@ -53,12 +54,15 @@ def read(stream, env=None):
         # check if there there is exactly one next annotation for the formula
 
         for annotation in annotations:
-            next_variable = mgr.get_symbol(annotation)
+            try:
+                next_variable = mgr.get_symbol(annotation)
+            except pysmt.exceptions.UndefinedSymbolError:
+                next_variable = mgr.Symbol(annotation, typename=formula.get_type())
             model.add_state_var(formula)
 
             # remove the state variable curr and next from the extra declarations
-            extra_declarations.remove(formula)
-            extra_declarations.remove(next_variable)
+            extra_declarations.discard(formula)
+            extra_declarations.discard(next_variable)
             next_replacements[next_variable] = mgr.Next(formula)
 
         # there should only be one annotation

@@ -49,7 +49,7 @@ class TraceStep:
         '''Gets a copy of the assignments
 
         :return: The assignments within this step
-        :rtype: Dict[pysmt.fnode.FNode, pysmt.fnode.FNode]
+        :rtype: { pysmt.fnode.FNode: pysmt.fnode.FNode }
         '''
         return self._assignments.copy()
 
@@ -327,7 +327,7 @@ class Trace:
         '''Get a copy of the list of steps in the trace
 
         :return: The list of steps
-        :rtype: List[pyvmt.solvers.traces.TraceStep]
+        :rtype: [pyvmt.solvers.traces.TraceStep]
         '''
         return self._steps.copy()
 

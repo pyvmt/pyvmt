@@ -29,6 +29,7 @@ from pysmt.operators import new_node_type
 from pysmt.type_checker import SimpleTypeChecker
 from pysmt.oracles import FreeVarsOracle, TheoryOracle, QuantifierOracle
 from pysmt.walkers import handles, IdentityDagWalker, DagWalker
+import pysmt.rewritings
 import pysmt.formula
 import pysmt.printers
 import pysmt.operators as op
@@ -127,7 +128,7 @@ FreeVarsOracle.set_handler(FreeVarsOracle.walk_simple_args, NEXT)
 LTL_TYPE_TO_STR = { LTL_X: "X", LTL_F: "F", LTL_G: "G"}
 
 class HRPrinter(pysmt.printers.HRPrinter):
-    '''Extension of the PySmt HRPrinter, prints formuale in a human readable format
+    '''Extension of the PySmt HRPrinter, prints formulae in a human readable format
     '''
     #pylint: disable=missing-function-docstring
 
@@ -151,7 +152,7 @@ class HRPrinter(pysmt.printers.HRPrinter):
         self.stream.write("'")
 
 class HRSerializer(pysmt.printers.HRSerializer):
-    '''Extension of the PySmt HRSerializer, serializes formuale in a human readable format
+    '''Extension of the PySmt HRSerializer, serializes formulae in a human readable format
     '''
     PrinterClass = HRPrinter
 
@@ -304,3 +305,41 @@ class NextPusher(IdentityDagWalker):
         :rtype: pysmt.fnode.FNode
         '''
         return self.walk(formula)
+
+class NNFIzer(pysmt.rewritings.NNFizer):
+    '''Extension of pySMT's NNFizer.
+
+    Converts a formula that may contain LTL operators into Negation Normal Form.
+    '''
+
+    def _get_children(self, formula):
+        mgr = self.mgr
+        if formula.is_not():
+            s = formula.arg(0)
+            if s.node_type() in (LTL_X, LTL_G, LTL_F, NEXT):
+                return [mgr.Not(s.arg(0))]
+            if s.node_type() in (LTL_U, LTL_R):
+                return [mgr.Not(s.arg(0)), mgr.Not(s.arg(1))]
+        elif formula.node_type() in (*ALL_LTL, NEXT):
+            return formula.args()
+        return super()._get_children(formula)
+
+    def walk_not(self, formula, args, **kwargs):
+        s = formula.arg(0)
+        if s.node_type() == LTL_X:
+            return self.mgr.X(args[0])
+        if s.node_type() == LTL_G:
+            return self.mgr.F(args[0])
+        if s.node_type() == LTL_F:
+            return self.mgr.G(args[0])
+        if s.node_type() == LTL_U:
+            return self.mgr.R(args[0], args[1])
+        if s.node_type() == LTL_R:
+            return self.mgr.U(args[0], args[1])
+        if s.node_type() == NEXT:
+            return self.mgr.Next(args[0])
+        return super().walk_not(formula, args, **kwargs)
+
+    @handles(*ALL_LTL, NEXT)
+    def walk_other(self, formula, args, **kwargs):
+        return IdentityDagWalker.super(self, formula, args, **kwargs)
