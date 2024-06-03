@@ -18,7 +18,11 @@
 '''
 from pysmt.walkers import handles, IdentityDagWalker
 import pysmt.operators as op
-from pyvmt.operators import LTL_X, LTL_F, LTL_G, LTL_R, LTL_U, ALL_LTL, NNFIzer
+from pyvmt.operators import (
+    LTL_F, LTL_G, LTL_R, LTL_U, LTL_X, FUTURE_LTL,
+    LTL_O, LTL_H, LTL_T, LTL_S, LTL_Y, LTL_Z, PAST_LTL,
+    ALL_LTL, NNFIzer
+)
 from pyvmt.model import Model
 from pyvmt.environment import get_env
 
@@ -47,6 +51,26 @@ class LtlRewriter(IdentityDagWalker):
         assert len(args) == 1
         return self.mgr.Not(self.mgr.U(self.mgr.TRUE(), self.mgr.Not(args[0])))
 
+    def walk_ltl_z(self, formula, args, **kwargs):
+        '''Zf -> ¬(Y¬f)'''
+        assert len(args) == 1
+        return self.mgr.Not(self.mgr.Y(self.mgr.Not(args[0])))
+
+    def walk_ltl_t(self, formula, args, **kwargs):
+        '''fTg -> ¬(¬f S ¬g)'''
+        assert len(args) == 2
+        return self.mgr.Not(self.mgr.S(self.mgr.Not(args[0]), self.mgr.Not(args[1])))
+
+    def walk_ltl_o(self, formula, args, **kwargs):
+        '''Of -> T S f'''
+        assert len(args) == 1
+        return self.mgr.S(self.mgr.TRUE(), args[0])
+
+    def walk_ltl_h(self, formula, args, **kwargs):
+        '''Hf -> ¬(F ¬f)'''
+        assert len(args) == 1
+        return self.mgr.Not(self.mgr.S(self.mgr.TRUE(), self.mgr.Not(args[0])))
+
 class LtlEncodingWalker(IdentityDagWalker):
     '''Walker to find the elementary formulae composing an LTL formula, and
     the associated sat values.
@@ -69,7 +93,7 @@ class LtlEncodingWalker(IdentityDagWalker):
         '''Get the sat value for a formula.'''
         return self.walk(formula)
 
-    @handles(LTL_F, LTL_G, LTL_R)
+    @handles(LTL_F, LTL_G, LTL_R, LTL_Z, LTL_O, LTL_H, LTL_T)
     def walk_ltl_unsupported(self, formula, args, **kwargs):
         '''Raise an error on use of unsupported operator'''
         raise NotImplementedError(
@@ -97,6 +121,28 @@ class LtlEncodingWalker(IdentityDagWalker):
             stvar = self.mgr.FreshSymbol(formula.get_type(), 'el_u_%d')
             self._el_map[x_formula] = stvar
         return self.mgr.Or(args[1], self.mgr.And(args[0], self._el_map[x_formula]))
+
+    def walk_ltl_y(self, formula, args, **Kwargs):
+        '''
+        el(Y f) = el(f) union { Y f}
+        sat(Y f) = el(Y f)
+        '''
+        assert len(args) == 1
+        if formula not in self._el_map:
+            self._el_map[formula] = self.mgr.FreshSymbol(formula.get_type(), 'el_y_%d')
+        return self._el_map[formula]
+
+    def walk_ltl_s(self, formula, args, **kwargs):
+        '''
+        el(f S g) = el(f) union el(g) union { Y(f S g) }
+        sat(f S g) = sat(g) | (sat(f) & el(Y(f S g)))
+        '''
+        assert len(args) == 2
+        y_formula = self.mgr.Y(formula)
+        if y_formula not in self._el_map:
+            stvar = self.mgr.FreshSymbol(formula.get_type(), 'el_s_%d')
+            self._el_map[y_formula] = stvar
+        return self.mgr.Or(args[1], self.mgr.And(args[0], self._el_map[y_formula]))
 
 def _copy_model(model):
     new_model = Model(env=model.get_env())
@@ -175,11 +221,17 @@ def ltl_encode(model, formula):
         # add variables for the tableau
         model.add_state_var(stvar)
         sat = el_walker.get_sat(el_.arg(0))
-        # define how the variables evolve
-        model.add_trans(mgr.EqualsOrIff(stvar, mgr.Next(sat)))
-        if el_.arg(0).node_type() == LTL_U:
-            # add the required justice
-            justice.append(mgr.Or(mgr.Not(sat), el_walker.get_sat(el_.arg(0).arg(1))))
+        if el_.node_type() in FUTURE_LTL:
+            # define how the variables evolve
+            model.add_trans(mgr.EqualsOrIff(stvar, mgr.Next(sat)))
+            if el_.arg(0).node_type() == LTL_U:
+                # add the required justice
+                justice.append(mgr.Or(mgr.Not(sat), el_walker.get_sat(el_.arg(0).arg(1))))
+        else:
+            # Past case: monitor is updated with the current value
+            assert(el_.node_type() in PAST_LTL)
+            model.add_trans(mgr.EqualsOrIff(mgr.Next(stvar), sat))
+
     model.add_init(el_walker.get_sat(formula))
 
     accept, stvars, init, trans = make_single_justice(justice)

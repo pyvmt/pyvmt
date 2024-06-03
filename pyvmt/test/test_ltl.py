@@ -21,7 +21,7 @@ import sys
 from unittest import TestCase
 import pytest
 from pysmt.shortcuts import Symbol, Iff, And, Or, Not, TRUE, FALSE
-from pyvmt.shortcuts import Next, F, X, G, U, R
+from pyvmt.shortcuts import Next, F, X, G, U, R, Y, Z, H, S, O, T
 from pyvmt.environment import reset_env, get_env
 from pyvmt.operators import HasLtlOperatorsWalker, NNFIzer
 from pyvmt.vmtlib.printers import VmtPrinter, VmtDagPrinter
@@ -175,6 +175,21 @@ class TestLtl(TestCase):
         self.assertEqual(rewriter.rewrite(F(f)), U(TRUE(), f))
         self.assertEqual(rewriter.rewrite(G(f)), Not(U(TRUE(), Not(f))))
 
+        # Past operators
+
+        self.assertEqual(rewriter.rewrite(Y(f)), Y(f))
+        # Z -> Y
+        self.assertEqual(rewriter.rewrite(Z(f)), Not(Y(Not(f))))
+        self.assertEqual(rewriter.rewrite(S(z, f)), S(z, f))
+        # T -> S
+        self.assertEqual(rewriter.rewrite(T(z, f)),
+            Not(S(Not(z), Not(f)))
+        )
+        # O -> S
+        self.assertEqual(rewriter.rewrite(O(f)), S(TRUE(), f))
+        # H -> S
+        self.assertEqual(rewriter.rewrite(H(f)), Not(S(TRUE(), Not(f))))
+
     def test_ltl_encoding_walker(self):
         '''Test the LtlEncodingWalker, check the elementary subformulae and sat values'''
         x = Symbol('x')
@@ -189,6 +204,18 @@ class TestLtl(TestCase):
 
         self.assertEqual(walker.get_sat(el0),
             Or(z, And(x, el[X(el0)])))
+        self.assertEqual(walker.get_sat(el1.arg(0)),
+            And(x, y))
+
+        el1 = Y(And(x, y))
+        el0 = S(x, z)
+        f = And(el1, el0)
+        walker = LtlEncodingWalker(f)
+        el = walker.get_el_map()
+        self.assertSetEqual(set(el), { el1, Y(el0) })
+
+        self.assertEqual(walker.get_sat(el0),
+            Or(z, And(x, el[Y(el0)])))
         self.assertEqual(walker.get_sat(el1.arg(0)),
             And(x, y))
 
@@ -228,6 +255,47 @@ class TestLtl(TestCase):
         )
         self.assertEqual(new_model.get_live_properties()[0].formula,
             Not(Symbol('J_2')))
+        new_model.get_live_properties()
+
+    def test_ltl_encode_past(self):
+        '''Test the ltl encoding procedure for past operators'''
+        x = Symbol('x')
+        y = Symbol('y')
+        z = Symbol('z')
+        el0 = S(x, z)
+        el1 = Y(And(x, y))
+        f = And(el1, el0)
+
+        model = Model()
+        model.add_state_var(x)
+        model.add_state_var(y)
+        model.add_state_var(z)
+        new_model = ltl_encode(model, f)
+
+        el_s_0 = Symbol('el_s_0')
+        el_y_1 = Symbol('el_y_1')
+
+        self.assertSetEqual(set(new_model.get_trans_constraints()[0:2]),
+            set([
+                Iff(
+                    Next(el_s_0),
+                    Or(z, And(x, el_s_0))
+                ),
+                Iff(
+                    Next(el_y_1),
+                    And(x, y)
+                )
+            ]))
+        self.assertSetEqual(set(new_model.get_init_constraints()[0:1]),
+            set([
+                Not(And(el_y_1, Or(z, And(x, el_s_0))))
+            ])
+        )
+
+        print(new_model.get_live_properties())
+
+        self.assertEqual(new_model.get_live_properties()[0].formula,
+            Not(TRUE()))
         new_model.get_live_properties()
 
     def test_circuit_encoding_walker(self):
