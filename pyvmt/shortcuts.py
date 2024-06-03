@@ -64,6 +64,42 @@ def R(left, right):
     '''
     return get_env().formula_manager.R(left, right)
 
+def Y(formula):
+    '''Creates an expression of the form:
+        Y formula
+    '''
+    return get_env().formula_manager.Y(formula)
+
+def Z(formula):
+    '''Creates an expression of the form:
+        Z formula
+    '''
+    return get_env().formula_manager.Z(formula)
+
+def O(formula):
+    '''Creates an expression of the form:
+        O formula
+    '''
+    return get_env().formula_manager.O(formula)
+
+def H(formula):
+    '''Creates an expression of the form:
+        H formula
+    '''
+    return get_env().formula_manager.H(formula)
+
+def S(left, right):
+    '''Creates an expression of the form:
+        left S right
+    '''
+    return get_env().formula_manager.S(left, right)
+
+def T(left, right):
+    '''Creates an expression of the form:
+        left T right
+    '''
+    return get_env().formula_manager.T(left, right)
+
 def has_ltl(formula):
     '''Returns whether the formula contains any of the LTL operators'''
     return get_env().has_ltl_operators_walker.has_ltl(formula)
