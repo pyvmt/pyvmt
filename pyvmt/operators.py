@@ -38,6 +38,7 @@ from pyvmt import exceptions
 
 # All of the required node types
 
+# Future LTL
 #: LTL operator for neXt
 LTL_X = new_node_type(node_str="LTL_X")
 #: LTL operator for eventually (Future)
@@ -48,6 +49,20 @@ LTL_G = new_node_type(node_str="LTL_G")
 LTL_U = new_node_type(node_str="LTL_U")
 #: LTL operator for Releases
 LTL_R = new_node_type(node_str="LTL_R")
+#: LTL operator for Yesterday
+
+# Past LTL
+LTL_Y = new_node_type(node_str="LTL_Y")
+#: LTL operator for the dual of Yesterday
+LTL_Z = new_node_type(node_str="LTL_Z")
+#: LTL operator for Once
+LTL_O = new_node_type(node_str="LTL_O")
+#: LTL operator for Once
+LTL_H = new_node_type(node_str="LTL_H")
+#: LTL operator for Since
+LTL_S = new_node_type(node_str="LTL_S")
+#: LTL operator for Triggered
+LTL_T = new_node_type(node_str="LTL_T")
 
 #: Next operator, transforms a curr state formula into a next state formula
 NEXT = new_node_type(node_str='NEXT')
@@ -61,7 +76,10 @@ def _bv_width(self):
     return _pysmt_bv_width(self)
 FNode.bv_width = _bv_width
 
-ALL_LTL = (LTL_X, LTL_F, LTL_G, LTL_U, LTL_R)
+FUTURE_LTL = (LTL_X, LTL_F, LTL_G, LTL_U, LTL_R)
+PAST_LTL = (LTL_Y, LTL_Z, LTL_O, LTL_H, LTL_S, LTL_T)
+
+ALL_LTL = FUTURE_LTL + PAST_LTL
 
 class FormulaManager(pysmt.formula.FormulaManager):
     '''An extension of the PySmt formula manager
@@ -98,6 +116,42 @@ class FormulaManager(pysmt.formula.FormulaManager):
         '''
         return self.create_node(node_type=LTL_R, args=(left, right))
 
+    def Y(self, formula):
+        '''Creates an expression of the form:
+            Y formula
+        '''
+        return self.create_node(node_type=LTL_Y, args=(formula,))
+
+    def Z(self, formula):
+        '''Creates an expression of the form:
+            Z formula
+        '''
+        return self.create_node(node_type=LTL_Z, args=(formula,))
+
+    def O(self, formula):
+        '''Creates an expression of the form:
+            O formula
+        '''
+        return self.create_node(node_type=LTL_O, args=(formula,))
+
+    def H(self, formula):
+        '''Creates an expression of the form:
+            H formula
+        '''
+        return self.create_node(node_type=LTL_H, args=(formula,))
+
+    def S(self, left, right):
+        '''Creates an expression of the form:
+            left S right
+        '''
+        return self.create_node(node_type=LTL_S, args=(left, right))
+
+    def T(self, left, right):
+        '''Creates an expression of the form:
+            left T right
+        '''
+        return self.create_node(node_type=LTL_T, args=(left, right))
+
     def Next(self, formula):
         '''Creates an expression of the form:
             (formula)'
@@ -125,20 +179,19 @@ FreeVarsOracle.set_handler(FreeVarsOracle.walk_simple_args, *ALL_LTL)
 FreeVarsOracle.set_handler(FreeVarsOracle.walk_simple_args, NEXT)
 
 # Extend the classes required for HR printing and serialization
-LTL_TYPE_TO_STR = { LTL_X: "X", LTL_F: "F", LTL_G: "G"}
+LTL_TYPE_TO_STR = { LTL_X: "X", LTL_F: "F", LTL_G: "G", LTL_U: "U", LTL_R: "R",\
+        LTL_Y: "Y", LTL_Z: "Z", LTL_O: "O", LTL_H: "H", LTL_S: "S", LTL_T: "T"}
 
 class HRPrinter(pysmt.printers.HRPrinter):
     '''Extension of the PySmt HRPrinter, prints formulae in a human readable format
     '''
     #pylint: disable=missing-function-docstring
+    @handles(LTL_U, LTL_R, LTL_S, LTL_T)
+    def walk_ltl_unary(self, formula):
+        node_type = formula.node_type()
+        return self.walk_nary(formula, LTL_TYPE_TO_STR[node_type])
 
-    def walk_ltl_r(self, formula):
-        return self.walk_nary(formula, " R ")
-
-    def walk_ltl_u(self, formula):
-        return self.walk_nary(formula, " U ")
-
-    @handles(LTL_X, LTL_F, LTL_G)
+    @handles(LTL_X, LTL_F, LTL_G, LTL_Y, LTL_Z, LTL_O, LTL_H)
     def walk_ltl(self, formula):
         node_type = formula.node_type()
         op_symbol = LTL_TYPE_TO_STR[node_type]
@@ -173,6 +226,24 @@ def _walk_ltl_f(self, formula, args, **kwargs):
 def _walk_ltl_g(self, formula, args, **kwargs):
     return self.mgr.G(args[0])
 
+def _walk_ltl_y(self, formula, args, **kwargs):
+    return self.mgr.Y(args[0])
+
+def _walk_ltl_z(self, formula, args, **kwargs):
+    return self.mgr.Z(args[0])
+
+def _walk_ltl_s(self, formula, args, **kwargs):
+    return self.mgr.S(args[0], args[1])
+
+def _walk_ltl_t(self, formula, args, **kwargs):
+    return self.mgr.T(args[0], args[1])
+
+def _walk_ltl_o(self, formula, args, **kwargs):
+    return self.mgr.O(args[0])
+
+def _walk_ltl_h(self, formula, args, **kwargs):
+    return self.mgr.H(args[0])
+
 def _walk_next(self, formula, args, **kwargs):
     return self.mgr.Next(args[0])
 
@@ -181,6 +252,12 @@ IdentityDagWalker.set_handler(_walk_ltl_u, LTL_U)
 IdentityDagWalker.set_handler(_walk_ltl_r, LTL_R)
 IdentityDagWalker.set_handler(_walk_ltl_f, LTL_F)
 IdentityDagWalker.set_handler(_walk_ltl_g, LTL_G)
+IdentityDagWalker.set_handler(_walk_ltl_y, LTL_X)
+IdentityDagWalker.set_handler(_walk_ltl_z, LTL_Z)
+IdentityDagWalker.set_handler(_walk_ltl_s, LTL_S)
+IdentityDagWalker.set_handler(_walk_ltl_t, LTL_T)
+IdentityDagWalker.set_handler(_walk_ltl_o, LTL_O)
+IdentityDagWalker.set_handler(_walk_ltl_h, LTL_H)
 IdentityDagWalker.set_handler(_walk_next, NEXT)
 
 # Set handlers for the MGSubstituter for the new operators
@@ -336,6 +413,18 @@ class NNFIzer(pysmt.rewritings.NNFizer):
             return self.mgr.R(args[0], args[1])
         if s.node_type() == LTL_R:
             return self.mgr.U(args[0], args[1])
+        if s.node_type() == LTL_Y:
+            return self.mgr.Z(args[0])
+        if s.node_type() == LTL_Z:
+            return self.mgr.Y(args[0])
+        if s.node_type() == LTL_H:
+            return self.mgr.O(args[0])
+        if s.node_type() == LTL_O:
+            return self.mgr.H(args[0])
+        if s.node_type() == LTL_S:
+            return self.mgr.T(args[0], args[1])
+        if s.node_type() == LTL_T:
+            return self.mgr.S(args[0], args[1])
         if s.node_type() == NEXT:
             return self.mgr.Next(args[0])
         return super().walk_not(formula, args, **kwargs)
