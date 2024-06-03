@@ -50,7 +50,14 @@ class TestLtl(TestCase):
         self.assertTrue(walker.has_ltl(mgr.F(x)))
         self.assertTrue(walker.has_ltl(mgr.R(x, y)))
         self.assertTrue(walker.has_ltl(mgr.U(x, y)))
+        self.assertTrue(walker.has_ltl(mgr.Y(x)))
+        self.assertTrue(walker.has_ltl(mgr.Z(x)))
+        self.assertTrue(walker.has_ltl(mgr.H(x)))
+        self.assertTrue(walker.has_ltl(mgr.O(x)))
+        self.assertTrue(walker.has_ltl(mgr.T(x, y)))
+        self.assertTrue(walker.has_ltl(mgr.S(x, y)))
         self.assertTrue(walker.has_ltl(Iff(x, And(y, mgr.U(x, y)))))
+        self.assertTrue(walker.has_ltl(Iff(x, And(y, mgr.S(x, y)))))
 
     def test_printers(self):
         '''Test if the VMT-LIB printers work correctly
@@ -76,11 +83,23 @@ class TestLtl(TestCase):
         self.assertEqual(f_to_str(mgr.G(x), False), '(ltl.G x)')
         self.assertEqual(f_to_str(mgr.U(x, y), False), '(ltl.U x y)')
         self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.R(x, y), False))
+        self.assertEqual(f_to_str(mgr.Y(x), False), '(ltl.Y x)')
+        self.assertEqual(f_to_str(mgr.Z(x), False), '(ltl.Z x)')
+        self.assertEqual(f_to_str(mgr.O(x), False), '(ltl.O x)')
+        self.assertEqual(f_to_str(mgr.H(x), False), '(ltl.H x)')
+        self.assertEqual(f_to_str(mgr.S(x, y), False), '(ltl.S x y)')
+        self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.T(x, y), False))
         self.assertEqual(f_to_str(mgr.X(x), True), '(let ((.def_0 (ltl.X x))) .def_0)')
         self.assertEqual(f_to_str(mgr.F(x), True), '(let ((.def_0 (ltl.F x))) .def_0)')
         self.assertEqual(f_to_str(mgr.G(x), True), '(let ((.def_0 (ltl.G x))) .def_0)')
         self.assertEqual(f_to_str(mgr.U(x, y), True), '(let ((.def_0 (ltl.U x y))) .def_0)')
         self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.R(x, y), True))
+        self.assertEqual(f_to_str(mgr.Y(x), True), '(let ((.def_0 (ltl.Y x))) .def_0)')
+        self.assertEqual(f_to_str(mgr.Z(x), True), '(let ((.def_0 (ltl.Z x))) .def_0)')
+        self.assertEqual(f_to_str(mgr.O(x), True), '(let ((.def_0 (ltl.O x))) .def_0)')
+        self.assertEqual(f_to_str(mgr.H(x), True), '(let ((.def_0 (ltl.H x))) .def_0)')
+        self.assertEqual(f_to_str(mgr.S(x, y), True), '(let ((.def_0 (ltl.S x y))) .def_0)')
+        self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.T(x, y), True))
 
         # HR printer
         self.assertEqual(mgr.X(x).serialize(), '(X x)')
@@ -88,6 +107,12 @@ class TestLtl(TestCase):
         self.assertEqual(mgr.G(x).serialize(), '(G x)')
         self.assertEqual(mgr.U(x, y).serialize(), '(x U y)')
         self.assertEqual(mgr.R(x, y).serialize(), '(x R y)')
+        self.assertEqual(mgr.Y(x).serialize(), '(Y x)')
+        self.assertEqual(mgr.Z(x).serialize(), '(Z x)')
+        self.assertEqual(mgr.O(x).serialize(), '(O x)')
+        self.assertEqual(mgr.H(x).serialize(), '(H x)')
+        self.assertEqual(mgr.S(x, y).serialize(), '(x S y)')
+        self.assertEqual(mgr.T(x, y).serialize(), '(x T y)')
 
     def test_nnfizer(self):
         '''Test the NNFizer for the LTL operators'''
@@ -110,10 +135,28 @@ class TestLtl(TestCase):
             mgr.R(negated_f, negated_g))
         self.assertEqual(walker.convert(mgr.Not(mgr.R(f, g))),
             mgr.U(negated_f, negated_g))
-        for wrapper in [mgr.F, mgr.G, mgr.X, mgr.Next]:
+
+        self.assertEqual(walker.convert(mgr.Not(mgr.Y(f))),
+            mgr.Z(negated_f))
+        self.assertEqual(walker.convert(mgr.Not(mgr.Z(f))),
+            mgr.Y(negated_f))
+        self.assertEqual(walker.convert(mgr.Not(mgr.H(f))),
+            mgr.O(negated_f))
+        self.assertEqual(walker.convert(mgr.Not(mgr.O(f))),
+            mgr.H(negated_f))
+        self.assertEqual(walker.convert(mgr.Not(mgr.S(f, g))),
+            mgr.T(negated_f, negated_g))
+        self.assertEqual(walker.convert(mgr.Not(mgr.T(f, g))),
+            mgr.S(negated_f, negated_g))
+
+        unary_w = [mgr.F, mgr.G, mgr.X, mgr.Next, mgr.Y, mgr.Z, mgr.O, mgr.H]
+        binary_w = [mgr.U, mgr.R, mgr.S, mgr.T]
+
+        for wrapper in unary_w:
             self.assertEqual(walker.convert(wrapper(mgr.Not(g))),
                 wrapper(negated_g))
-        for wrapper in [mgr.U, mgr.R]:
+
+        for wrapper in binary_w:
             self.assertEqual(walker.convert(wrapper(mgr.Not(f), mgr.Not(g))),
                 wrapper(negated_f, negated_g))
 
