@@ -187,12 +187,13 @@ class HRPrinter(pysmt.printers.HRPrinter):
     '''
     #pylint: disable=missing-function-docstring
     @handles(LTL_U, LTL_R, LTL_S, LTL_T)
-    def walk_ltl_unary(self, formula):
-        node_type = formula.node_type()
-        return self.walk_nary(formula, LTL_TYPE_TO_STR[node_type])
+    def walk_ltl_binary(self, formula):
+        # Add spaces between opertor and arguments
+        bin_str = " %s " % LTL_TYPE_TO_STR[formula.node_type()]
+        return self.walk_nary(formula, bin_str)
 
     @handles(LTL_X, LTL_F, LTL_G, LTL_Y, LTL_Z, LTL_O, LTL_H)
-    def walk_ltl(self, formula):
+    def walk_ltl_unary(self, formula):
         node_type = formula.node_type()
         op_symbol = LTL_TYPE_TO_STR[node_type]
         self.stream.write("(")
@@ -252,7 +253,7 @@ IdentityDagWalker.set_handler(_walk_ltl_u, LTL_U)
 IdentityDagWalker.set_handler(_walk_ltl_r, LTL_R)
 IdentityDagWalker.set_handler(_walk_ltl_f, LTL_F)
 IdentityDagWalker.set_handler(_walk_ltl_g, LTL_G)
-IdentityDagWalker.set_handler(_walk_ltl_y, LTL_X)
+IdentityDagWalker.set_handler(_walk_ltl_y, LTL_Y)
 IdentityDagWalker.set_handler(_walk_ltl_z, LTL_Z)
 IdentityDagWalker.set_handler(_walk_ltl_s, LTL_S)
 IdentityDagWalker.set_handler(_walk_ltl_t, LTL_T)
@@ -393,9 +394,9 @@ class NNFIzer(pysmt.rewritings.NNFizer):
         mgr = self.mgr
         if formula.is_not():
             s = formula.arg(0)
-            if s.node_type() in (LTL_X, LTL_G, LTL_F, NEXT):
+            if s.node_type() in (LTL_X, LTL_G, LTL_F, LTL_Y, LTL_Z, LTL_H, LTL_O, NEXT):
                 return [mgr.Not(s.arg(0))]
-            if s.node_type() in (LTL_U, LTL_R):
+            if s.node_type() in (LTL_U, LTL_R, LTL_S, LTL_T):
                 return [mgr.Not(s.arg(0)), mgr.Not(s.arg(1))]
         elif formula.node_type() in (*ALL_LTL, NEXT):
             return formula.args()
