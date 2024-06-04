@@ -255,7 +255,6 @@ class TestLtl(TestCase):
         )
         self.assertEqual(new_model.get_live_properties()[0].formula,
             Not(Symbol('J_2')))
-        new_model.get_live_properties()
 
     def test_ltl_encode_past(self):
         '''Test the ltl encoding procedure for past operators'''
@@ -292,11 +291,8 @@ class TestLtl(TestCase):
             ])
         )
 
-        print(new_model.get_live_properties())
-
         self.assertEqual(new_model.get_live_properties()[0].formula,
             Not(TRUE()))
-        new_model.get_live_properties()
 
     def test_circuit_encoding_walker(self):
         '''Test that the circuit encoding walker produces the correct subformulae
