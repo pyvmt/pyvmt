@@ -343,6 +343,46 @@ class LtlCircuitEncodingWalker(IdentityDagWalker):
             failed = mgr.And(pending, mgr.Not(formula.arg(1)))
             init.append(mgr.Not(y_pending))
             trans.append(mgr.Iff(mgr.Next(y_pending), pending))
+        elif formula.node_type() == LTL_Y:
+            yarg = mgr.FreshSymbol(template='LTL.Y.arg.%d')
+            stvars.append(yarg)
+            init.append(mgr.Not(yarg))
+            trans.append(mgr.Iff(Next(yarg), formula.arg(0)))
+            failed = mgr.And(activator, mgr.Not(yarg))
+        elif formula.node_type() == LTL_Z:
+            zarg = mgr.FreshSymbol(template='LTL.Z.arg.%d')
+            stvars.append(yarg)
+            init.append(zarg)
+            trans.append(mgr.Iff(Next(zarg), formula.arg(0)))
+            failed = mgr.And(activator, mgr.Not(yarg))
+        elif formula.node_type() == LTL_H:
+            ynt = mgr.FreshSymbol(template='LTL.H.ynt')
+            stvars.append(yt)
+            init.append(mgr.Not(yt))
+            nt = mgr.Or(ynt, Not(formula.arg(0)))
+            trans.append(mgr.Iff(mgr.Next(ynt), nt))
+            failed = mgr.And(activator, nt)
+        elif formula.node_type() == LTL_O:
+            yt = mgr.FreshSymbol(template='LTL.O.yt')
+            stvars.append(yt)
+            init.append(mgr.Not(yt))
+            t = mgr.Or(yt, formula.arg(0))
+            trans.append(mgr.Iff(mgr.Next(yt), t))
+            failed = mgr.And(activator, mgr.Not(t))
+        elif formula.node_type() == LTL_S:
+            yt = mgr.FreshSymbol(template='LTL.S.yt')
+            stvars.append(yt)
+            init.append(mgr.Not(yt))
+            t = mgr.Or(mgr.And(yt, op.args[0]), op.args[1])
+            trans.append(mgr.Iff(mgr.Next(yt), t))
+            failed = mgr.And(activator, mgr.Not(t))
+        elif formula.node_type() == LTL_T:
+            ynt = mgr.FreshSymbol(template='LTL.T.ynt')
+            stvars.append(ynt)
+            init.append(mgr.Not(ynt))
+            nt = mgr.Or(mgr.And(ynt, mgr.Not(op.args[0])), mgr.Not(op.args[1]))
+            trans.append(mgr.Iff(mgr.Next(ynt), nt))
+            failed = mgr.And(activator, nt)
         else:
             raise NotImplementedError(
                 f"Cannot create monitor for formula {formula}")
