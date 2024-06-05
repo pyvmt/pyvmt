@@ -37,7 +37,26 @@ class VmtPrinter(SmtPrinter):
     def walk_ltl_x(self, formula):
         return self.walk_nary(formula, 'ltl.X')
 
+
+    def walk_ltl_h(self, formula):
+        return self.walk_nary(formula, 'ltl.H')
+
+    def walk_ltl_o(self, formula):
+        return self.walk_nary(formula, 'ltl.O')
+
+    def walk_ltl_s(self, formula):
+        return self.walk_nary(formula, 'ltl.S')
+
+    def walk_ltl_y(self, formula):
+        return self.walk_nary(formula, 'ltl.Y')
+
+    def walk_ltl_z(self, formula):
+        return self.walk_nary(formula, 'ltl.Z')
+
     def walk_ltl_r(self, formula):
+        raise NotImplementedError
+
+    def walk_ltl_t(self, formula):
         raise NotImplementedError
 
     def walk_next(self, formula):
@@ -61,7 +80,26 @@ class VmtDagPrinter(SmtDagPrinter):
     def walk_ltl_x(self, formula, args):
         return self.walk_nary(formula, args, 'ltl.X')
 
+
+    def walk_ltl_h(self, formula, args):
+        return self.walk_nary(formula, args, 'ltl.H')
+
+    def walk_ltl_o(self, formula, args):
+        return self.walk_nary(formula, args, 'ltl.O')
+
+    def walk_ltl_s(self, formula, args):
+        return self.walk_nary(formula, args, 'ltl.S')
+
+    def walk_ltl_y(self, formula, args):
+        return self.walk_nary(formula, args, 'ltl.Y')
+
+    def walk_ltl_z(self, formula, args):
+        return self.walk_nary(formula, args, 'ltl.Z')
+
     def walk_ltl_r(self, formula, args):
+        raise NotImplementedError
+
+    def walk_ltl_t(self, formula, args):
         raise NotImplementedError
 
     def walk_next(self, formula, args):

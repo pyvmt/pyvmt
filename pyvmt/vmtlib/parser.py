@@ -31,7 +31,13 @@ class VmtLibParser(SmtLibParser):
         ltl_interpreted = { 'ltl.G': self._operator_adapter(mgr.G),
                             'ltl.U': self._operator_adapter(mgr.U),
                             'ltl.F': self._operator_adapter(mgr.F),
-                            'ltl.X': self._operator_adapter(mgr.X) }
+                            'ltl.X': self._operator_adapter(mgr.X),
+                            'ltl.H': self._operator_adapter(mgr.H),
+                            'ltl.S': self._operator_adapter(mgr.S),
+                            'ltl.O': self._operator_adapter(mgr.O),
+                            'ltl.Y': self._operator_adapter(mgr.Y),
+                            'ltl.Z': self._operator_adapter(mgr.Z),
+                           }
 
         for key, val in ltl_interpreted.items():
             self.interpreted[key] = val

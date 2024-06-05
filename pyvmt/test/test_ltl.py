@@ -21,7 +21,7 @@ import sys
 from unittest import TestCase
 import pytest
 from pysmt.shortcuts import Symbol, Iff, And, Or, Not, TRUE, FALSE
-from pyvmt.shortcuts import Next, F, X, G, U, R
+from pyvmt.shortcuts import Next, F, X, G, U, R, Y, Z, H, S, O, T
 from pyvmt.environment import reset_env, get_env
 from pyvmt.operators import HasLtlOperatorsWalker, NNFIzer
 from pyvmt.vmtlib.printers import VmtPrinter, VmtDagPrinter
@@ -50,7 +50,14 @@ class TestLtl(TestCase):
         self.assertTrue(walker.has_ltl(mgr.F(x)))
         self.assertTrue(walker.has_ltl(mgr.R(x, y)))
         self.assertTrue(walker.has_ltl(mgr.U(x, y)))
+        self.assertTrue(walker.has_ltl(mgr.Y(x)))
+        self.assertTrue(walker.has_ltl(mgr.Z(x)))
+        self.assertTrue(walker.has_ltl(mgr.H(x)))
+        self.assertTrue(walker.has_ltl(mgr.O(x)))
+        self.assertTrue(walker.has_ltl(mgr.T(x, y)))
+        self.assertTrue(walker.has_ltl(mgr.S(x, y)))
         self.assertTrue(walker.has_ltl(Iff(x, And(y, mgr.U(x, y)))))
+        self.assertTrue(walker.has_ltl(Iff(x, And(y, mgr.S(x, y)))))
 
     def test_printers(self):
         '''Test if the VMT-LIB printers work correctly
@@ -76,11 +83,23 @@ class TestLtl(TestCase):
         self.assertEqual(f_to_str(mgr.G(x), False), '(ltl.G x)')
         self.assertEqual(f_to_str(mgr.U(x, y), False), '(ltl.U x y)')
         self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.R(x, y), False))
+        self.assertEqual(f_to_str(mgr.Y(x), False), '(ltl.Y x)')
+        self.assertEqual(f_to_str(mgr.Z(x), False), '(ltl.Z x)')
+        self.assertEqual(f_to_str(mgr.O(x), False), '(ltl.O x)')
+        self.assertEqual(f_to_str(mgr.H(x), False), '(ltl.H x)')
+        self.assertEqual(f_to_str(mgr.S(x, y), False), '(ltl.S x y)')
+        self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.T(x, y), False))
         self.assertEqual(f_to_str(mgr.X(x), True), '(let ((.def_0 (ltl.X x))) .def_0)')
         self.assertEqual(f_to_str(mgr.F(x), True), '(let ((.def_0 (ltl.F x))) .def_0)')
         self.assertEqual(f_to_str(mgr.G(x), True), '(let ((.def_0 (ltl.G x))) .def_0)')
         self.assertEqual(f_to_str(mgr.U(x, y), True), '(let ((.def_0 (ltl.U x y))) .def_0)')
         self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.R(x, y), True))
+        self.assertEqual(f_to_str(mgr.Y(x), True), '(let ((.def_0 (ltl.Y x))) .def_0)')
+        self.assertEqual(f_to_str(mgr.Z(x), True), '(let ((.def_0 (ltl.Z x))) .def_0)')
+        self.assertEqual(f_to_str(mgr.O(x), True), '(let ((.def_0 (ltl.O x))) .def_0)')
+        self.assertEqual(f_to_str(mgr.H(x), True), '(let ((.def_0 (ltl.H x))) .def_0)')
+        self.assertEqual(f_to_str(mgr.S(x, y), True), '(let ((.def_0 (ltl.S x y))) .def_0)')
+        self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.T(x, y), True))
 
         # HR printer
         self.assertEqual(mgr.X(x).serialize(), '(X x)')
@@ -88,6 +107,12 @@ class TestLtl(TestCase):
         self.assertEqual(mgr.G(x).serialize(), '(G x)')
         self.assertEqual(mgr.U(x, y).serialize(), '(x U y)')
         self.assertEqual(mgr.R(x, y).serialize(), '(x R y)')
+        self.assertEqual(mgr.Y(x).serialize(), '(Y x)')
+        self.assertEqual(mgr.Z(x).serialize(), '(Z x)')
+        self.assertEqual(mgr.O(x).serialize(), '(O x)')
+        self.assertEqual(mgr.H(x).serialize(), '(H x)')
+        self.assertEqual(mgr.S(x, y).serialize(), '(x S y)')
+        self.assertEqual(mgr.T(x, y).serialize(), '(x T y)')
 
     def test_nnfizer(self):
         '''Test the NNFizer for the LTL operators'''
@@ -110,10 +135,28 @@ class TestLtl(TestCase):
             mgr.R(negated_f, negated_g))
         self.assertEqual(walker.convert(mgr.Not(mgr.R(f, g))),
             mgr.U(negated_f, negated_g))
-        for wrapper in [mgr.F, mgr.G, mgr.X, mgr.Next]:
+
+        self.assertEqual(walker.convert(mgr.Not(mgr.Y(f))),
+            mgr.Z(negated_f))
+        self.assertEqual(walker.convert(mgr.Not(mgr.Z(f))),
+            mgr.Y(negated_f))
+        self.assertEqual(walker.convert(mgr.Not(mgr.H(f))),
+            mgr.O(negated_f))
+        self.assertEqual(walker.convert(mgr.Not(mgr.O(f))),
+            mgr.H(negated_f))
+        self.assertEqual(walker.convert(mgr.Not(mgr.S(f, g))),
+            mgr.T(negated_f, negated_g))
+        self.assertEqual(walker.convert(mgr.Not(mgr.T(f, g))),
+            mgr.S(negated_f, negated_g))
+
+        unary_w = [mgr.F, mgr.G, mgr.X, mgr.Next, mgr.Y, mgr.Z, mgr.O, mgr.H]
+        binary_w = [mgr.U, mgr.R, mgr.S, mgr.T]
+
+        for wrapper in unary_w:
             self.assertEqual(walker.convert(wrapper(mgr.Not(g))),
                 wrapper(negated_g))
-        for wrapper in [mgr.U, mgr.R]:
+
+        for wrapper in binary_w:
             self.assertEqual(walker.convert(wrapper(mgr.Not(f), mgr.Not(g))),
                 wrapper(negated_f, negated_g))
 
@@ -132,6 +175,21 @@ class TestLtl(TestCase):
         self.assertEqual(rewriter.rewrite(F(f)), U(TRUE(), f))
         self.assertEqual(rewriter.rewrite(G(f)), Not(U(TRUE(), Not(f))))
 
+        # Past operators
+
+        self.assertEqual(rewriter.rewrite(Y(f)), Y(f))
+        # Z -> Y
+        self.assertEqual(rewriter.rewrite(Z(f)), Not(Y(Not(f))))
+        self.assertEqual(rewriter.rewrite(S(z, f)), S(z, f))
+        # T -> S
+        self.assertEqual(rewriter.rewrite(T(z, f)),
+            Not(S(Not(z), Not(f)))
+        )
+        # O -> S
+        self.assertEqual(rewriter.rewrite(O(f)), S(TRUE(), f))
+        # H -> S
+        self.assertEqual(rewriter.rewrite(H(f)), Not(S(TRUE(), Not(f))))
+
     def test_ltl_encoding_walker(self):
         '''Test the LtlEncodingWalker, check the elementary subformulae and sat values'''
         x = Symbol('x')
@@ -146,6 +204,18 @@ class TestLtl(TestCase):
 
         self.assertEqual(walker.get_sat(el0),
             Or(z, And(x, el[X(el0)])))
+        self.assertEqual(walker.get_sat(el1.arg(0)),
+            And(x, y))
+
+        el1 = Y(And(x, y))
+        el0 = S(x, z)
+        f = And(el1, el0)
+        walker = LtlEncodingWalker(f)
+        el = walker.get_el_map()
+        self.assertSetEqual(set(el), { el1, Y(el0) })
+
+        self.assertEqual(walker.get_sat(el0),
+            Or(z, And(x, el[Y(el0)])))
         self.assertEqual(walker.get_sat(el1.arg(0)),
             And(x, y))
 
@@ -185,7 +255,44 @@ class TestLtl(TestCase):
         )
         self.assertEqual(new_model.get_live_properties()[0].formula,
             Not(Symbol('J_2')))
-        new_model.get_live_properties()
+
+    def test_ltl_encode_past(self):
+        '''Test the ltl encoding procedure for past operators'''
+        x = Symbol('x')
+        y = Symbol('y')
+        z = Symbol('z')
+        el0 = S(x, z)
+        el1 = Y(And(x, y))
+        f = And(el1, el0)
+
+        model = Model()
+        model.add_state_var(x)
+        model.add_state_var(y)
+        model.add_state_var(z)
+        new_model = ltl_encode(model, f)
+
+        el_s_0 = Symbol('el_s_0')
+        el_y_1 = Symbol('el_y_1')
+
+        self.assertSetEqual(set(new_model.get_trans_constraints()[0:2]),
+            set([
+                Iff(
+                    Next(el_s_0),
+                    Or(z, And(x, el_s_0))
+                ),
+                Iff(
+                    Next(el_y_1),
+                    And(x, y)
+                )
+            ]))
+        self.assertSetEqual(set(new_model.get_init_constraints()[0:1]),
+            set([
+                Not(And(el_y_1, Or(z, And(x, el_s_0))))
+            ])
+        )
+
+        self.assertEqual(new_model.get_live_properties()[0].formula,
+            Not(TRUE()))
 
     def test_circuit_encoding_walker(self):
         '''Test that the circuit encoding walker produces the correct subformulae
@@ -203,6 +310,18 @@ class TestLtl(TestCase):
             ( lbls[2], X(lbls[1]) ),
             ( lbls[3], G(lbls[2]) ),
         ])
+
+        f_past = G(And(Y(x),S(Or(y, z), y)))
+        walker = LtlCircuitEncodingWalker(f_past)
+        subformulae = walker.get_subformulae()
+        lbls = [x for x, _ in subformulae]
+        print(subformulae)
+        self.assertListEqual(subformulae, [
+            ( lbls[0], Or(y, z), ),
+            ( lbls[1], S(lbls[0], y), ),
+            ( lbls[2], Y(x), ),
+            ( lbls[3], And(lbls[2], lbls[1]), ),
+            ( lbls[4], G(lbls[3]),), ])
 
     def test_circuit_encoding_no_subformulae(self):
         '''Test the special case in which the circuit encoding walker does not find
@@ -303,6 +422,88 @@ class TestLtl(TestCase):
         self.assertEqual(pending, And(Or(lbls[6], y_pending), Not(lbls[5])))
         self.assertEqual(accept, Not(pending))
         self.assertEqual(failed, And(pending, Not(z)))
+
+    def test_monitors_past(self):
+        '''Test that the generation of monitors for (past) LTL circuit encoder is correct'''
+        x = Symbol('x')
+        y = Symbol('y')
+        z = Symbol('z')
+        f = T(S(O(H(Y(x))), y), Z(z))
+        is_init = Symbol('is_init')
+        walker = LtlCircuitEncodingWalker(f)
+        subformulae = walker.get_subformulae()
+        subf_map = dict(subformulae)
+        lbls = list(subf_map.keys())
+
+        # LTL.Z
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, lbls[0], subf_map[lbls[0]])
+        self.assertEqual(len(stvars), 1)
+        zarg = stvars[0]
+        self.assertListEqual(init, [zarg])
+        self.assertListEqual(trans, [Iff(Next(zarg), z)])
+        self.assertEqual(accept, TRUE())
+        self.assertEqual(failed, And(lbls[0], Not(zarg)))
+        self.assertEqual(pending, FALSE())
+
+        # LTL.Y
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, lbls[1], subf_map[lbls[1]])
+        self.assertEqual(len(stvars), 1)
+        yarg = stvars[0]
+        self.assertListEqual(init, [Not(yarg)])
+        self.assertListEqual(trans, [Iff(Next(yarg), x)])
+        self.assertEqual(accept, TRUE())
+        self.assertEqual(failed, And(lbls[1], Not(yarg)))
+        self.assertEqual(pending, FALSE())
+
+        # LTL.H
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, lbls[2], subf_map[lbls[2]])
+        self.assertEqual(len(stvars), 1)
+        ynt = stvars[0]
+        self.assertListEqual(init, [Not(ynt)])
+        nt = Or(ynt, Not(lbls[1]))
+        self.assertListEqual(trans, [Iff(Next(ynt), nt)])
+        self.assertEqual(accept, TRUE())
+        self.assertEqual(failed, And(lbls[2], nt))
+        self.assertEqual(pending, FALSE())
+
+        # LTL.O
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, lbls[3], subf_map[lbls[3]])
+        self.assertEqual(len(stvars), 1)
+        yt = stvars[0]
+        self.assertListEqual(init, [Not(yt)])
+        t = Or(yt, lbls[2])
+        self.assertListEqual(trans, [Iff(Next(yt), t)])
+        self.assertEqual(accept, TRUE())
+        self.assertEqual(failed, And(lbls[3], Not(t)))
+        self.assertEqual(pending, FALSE())
+
+        # LTL.S
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, lbls[4], subf_map[lbls[4]])
+        self.assertEqual(len(stvars), 1)
+        yt = stvars[0]
+        self.assertListEqual(init, [Not(yt)])
+        t = Or(y, And(yt, lbls[3]))
+        self.assertListEqual(trans, [Iff(Next(yt), t)])
+        self.assertEqual(accept, TRUE())
+        self.assertEqual(failed, And(lbls[4], Not(t)))
+        self.assertEqual(pending, FALSE())
+
+        # LTL.T
+        stvars, init, trans, accept, failed, pending = \
+            walker.make_monitor(is_init, lbls[5], subf_map[lbls[5]])
+        self.assertEqual(len(stvars), 1)
+        ynt = stvars[0]
+        self.assertListEqual(init, [Not(ynt)])
+        nt = Or(Not(lbls[0]), And(ynt, Not(lbls[4])))
+        self.assertListEqual(trans, [Iff(Next(ynt), nt)])
+        self.assertEqual(accept, TRUE())
+        self.assertEqual(failed, And(lbls[5], nt))
+        self.assertEqual(pending, FALSE())
 
 if __name__ == '__main__':
     pytest.main(sys.argv)

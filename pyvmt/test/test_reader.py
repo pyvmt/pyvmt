@@ -55,6 +55,7 @@ DEMO_LTL = '''
 (declare-fun a.next () Bool)
 (define-fun .a-next () Bool (! a :next a.next ))
 (define-fun .ltl-prop () Bool (! (ltl.G (ltl.X (ltl.F (ltl.U a a.next)))) :ltl-property 0 ))
+(define-fun .pltl-prop () Bool (! (ltl.H (ltl.Y (ltl.O (ltl.S a a.next)))) :ltl-property 1 ))
 (assert true)'''
 
 class TestReader(TestCase):
@@ -169,6 +170,10 @@ class TestReader(TestCase):
         prop = model.get_property(0)
         self.assertTrue(prop.is_ltl())
         self.assertEqual(prop.formula, mgr.G(mgr.X(mgr.F(mgr.U(a, model.next(a))))))
+
+        prop = model.get_property(1)
+        self.assertTrue(prop.is_ltl())
+        self.assertEqual(prop.formula, mgr.H(mgr.Y(mgr.O(mgr.S(a, model.next(a))))))
 
 if __name__ == '__main__':
     pytest.main(sys.argv)
