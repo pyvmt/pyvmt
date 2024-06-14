@@ -67,6 +67,10 @@ LTL_T = new_node_type(node_str="LTL_T")
 #: Next operator, transforms a curr state formula into a next state formula
 NEXT = new_node_type(node_str='NEXT')
 
+# Finite LTL operator
+#: LTLf operator con weak Next
+LTL_N = new_node_type(node_str="LTL_N")
+
 # PySmt does not currently support native extension of bv_width
 # This is a workaround to extend the function to work with the Next operator
 _pysmt_bv_width = FNode.bv_width
@@ -76,7 +80,7 @@ def _bv_width(self):
     return _pysmt_bv_width(self)
 FNode.bv_width = _bv_width
 
-FUTURE_LTL = (LTL_X, LTL_F, LTL_G, LTL_U, LTL_R)
+FUTURE_LTL = (LTL_X, LTL_N, LTL_F, LTL_G, LTL_U, LTL_R)
 PAST_LTL = (LTL_Y, LTL_Z, LTL_O, LTL_H, LTL_S, LTL_T)
 
 ALL_LTL = FUTURE_LTL + PAST_LTL
@@ -161,6 +165,11 @@ class FormulaManager(pysmt.formula.FormulaManager):
                 "Next operator cannot contain a nested Next operator")
         return self.create_node(node_type=NEXT, args=(formula,))
 
+    def N(self, formula):
+        '''Creates an expression of the form:
+            N formula
+        '''
+        return self.create_node(node_type=LTL_N, args=(formula,))
 # set handlers for SimpleTypeChecker for the new operators
 
 def _type_walk_next(self, formula, args, **kwargs):
@@ -180,7 +189,8 @@ FreeVarsOracle.set_handler(FreeVarsOracle.walk_simple_args, NEXT)
 
 # Extend the classes required for HR printing and serialization
 LTL_TYPE_TO_STR = { LTL_X: "X", LTL_F: "F", LTL_G: "G", LTL_U: "U", LTL_R: "R",\
-        LTL_Y: "Y", LTL_Z: "Z", LTL_O: "O", LTL_H: "H", LTL_S: "S", LTL_T: "T"}
+        LTL_Y: "Y", LTL_Z: "Z", LTL_O: "O", LTL_H: "H", LTL_S: "S", LTL_T: "T",\
+        LTL_N: "N"}
 
 class HRPrinter(pysmt.printers.HRPrinter):
     '''Extension of the PySmt HRPrinter, prints formulae in a human readable format
@@ -192,7 +202,7 @@ class HRPrinter(pysmt.printers.HRPrinter):
         bin_str = " %s " % LTL_TYPE_TO_STR[formula.node_type()]
         return self.walk_nary(formula, bin_str)
 
-    @handles(LTL_X, LTL_F, LTL_G, LTL_Y, LTL_Z, LTL_O, LTL_H)
+    @handles(LTL_X, LTL_N, LTL_F, LTL_G, LTL_Y, LTL_Z, LTL_O, LTL_H)
     def walk_ltl_unary(self, formula):
         node_type = formula.node_type()
         op_symbol = LTL_TYPE_TO_STR[node_type]
@@ -248,6 +258,9 @@ def _walk_ltl_h(self, formula, args, **kwargs):
 def _walk_next(self, formula, args, **kwargs):
     return self.mgr.Next(args[0])
 
+def _walk_ltl_n(self, formula, args, **kwargs):
+    return self.mgr.N(args[0])
+
 IdentityDagWalker.set_handler(_walk_ltl_x, LTL_X)
 IdentityDagWalker.set_handler(_walk_ltl_u, LTL_U)
 IdentityDagWalker.set_handler(_walk_ltl_r, LTL_R)
@@ -260,6 +273,7 @@ IdentityDagWalker.set_handler(_walk_ltl_t, LTL_T)
 IdentityDagWalker.set_handler(_walk_ltl_o, LTL_O)
 IdentityDagWalker.set_handler(_walk_ltl_h, LTL_H)
 IdentityDagWalker.set_handler(_walk_next, NEXT)
+IdentityDagWalker.set_handler(_walk_ltl_n, LTL_N)
 
 # Set handlers for the MGSubstituter for the new operators
 MGSubstituter.set_handler(MGSubstituter.walk_identity_or_replace, NEXT, *ALL_LTL)
@@ -313,6 +327,26 @@ class HasNextOperatorWalker(DagWalker):
         :return: True if the formula contains the Next operator, False otherwise
         :rtype: bool
         '''
+        return self.walk(formula)
+
+class IsSafetyLtl(DagWalker):
+    '''Returns whether the formula is in the safetyLTL fragment
+
+    (Assumes that the formula is normalized)
+    '''
+    def __init__(self, env=None):
+        super().__init__(env=env)
+
+    @handles(*op.ALL_TYPES, LTL_U, LTL_F)
+    def walk_live(self, formula, args, **kwargs):
+        return False
+
+    @handles(*op.ALL_TYPES, *ALL_LTL)
+    def walk_other(self, formula, *args, **kwargs):
+        '''Any operator which is not U/F will return True if any children nodes returns True'''
+        return self.walk_any(formula, *args, **kwargs)
+
+    def is_safety_ltl(self, formula):
         return self.walk(formula)
 
 class NextPusher(IdentityDagWalker):
@@ -394,7 +428,7 @@ class NNFIzer(pysmt.rewritings.NNFizer):
         mgr = self.mgr
         if formula.is_not():
             s = formula.arg(0)
-            if s.node_type() in (LTL_X, LTL_G, LTL_F, LTL_Y, LTL_Z, LTL_H, LTL_O, NEXT):
+            if s.node_type() in (LTL_X, LTL_N, LTL_G, LTL_F, LTL_Y, LTL_Z, LTL_H, LTL_O, NEXT):
                 return [mgr.Not(s.arg(0))]
             if s.node_type() in (LTL_U, LTL_R, LTL_S, LTL_T):
                 return [mgr.Not(s.arg(0)), mgr.Not(s.arg(1))]
@@ -405,7 +439,9 @@ class NNFIzer(pysmt.rewritings.NNFizer):
     def walk_not(self, formula, args, **kwargs):
         s = formula.arg(0)
         if s.node_type() == LTL_X:
-            return self.mgr.X(args[0])
+            return self.mgr.N(args[0])
+        if s.node_type() == LTL_N:
+            return self.mrg.X(args[0])
         if s.node_type() == LTL_G:
             return self.mgr.F(args[0])
         if s.node_type() == LTL_F:
@@ -433,3 +469,22 @@ class NNFIzer(pysmt.rewritings.NNFizer):
     @handles(*ALL_LTL, NEXT)
     def walk_other(self, formula, args, **kwargs):
         return IdentityDagWalker.super(self, formula, args, **kwargs)
+
+class XWeakener(IdentityDagWalker):
+    '''Walker to rewrite a formula replacing all X occurrence with N.
+    '''
+
+    def __init__(self, env=None):
+        super().__init__(env=env)
+
+    def remove_weak_next(self, formula):
+        '''Rewrite a formula containing LTL replacing strong next operator (X) with
+        weak next (N). It should be noted that the translation alters the semantics
+        of the formula when it is interpreted over finite traces. Infite semantics
+        is not affected'''
+        return self.walk(formula)
+
+    def walk_ltl_x(self, formula, args, **kwargs):
+        ''' X phi -> N phi'''
+        assert(len(args) == 1)
+        return self.mgr.X(args[1])

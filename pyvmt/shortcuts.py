@@ -100,6 +100,12 @@ def T(left, right):
     '''
     return get_env().formula_manager.T(left, right)
 
+def N(formula):
+    '''Creates an expression of the form:
+        N formula
+    '''
+    return get_env().formula_manager.N(formula)
+
 def has_ltl(formula):
     '''Returns whether the formula contains any of the LTL operators'''
     return get_env().has_ltl_operators_walker.has_ltl(formula)
