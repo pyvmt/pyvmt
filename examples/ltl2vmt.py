@@ -16,14 +16,17 @@
 import sys
 import argparse
 from pyvmt.vmtlib.reader import read
-from pyvmt.ltl_encoder import ltl_encode, ltl_circuit_encode
+from pyvmt.model import Model
+from pyvmt.ltl_encoder import ltl_encode, ltl_circuit_encode, ltlf_encode
 from pyvmt import exceptions
 
 def parse_args ():
     '''Defines and parses the arguments'''
     encoding_algs = {
-        'ltl2smv': ltl_encode,
-        'circuit': ltl_circuit_encode,
+        'ltl2smv': ltl_encoder.ltl_encode,
+        'safetyltl2smv' : ltl_encoder.safetyltl_encode,
+        'ltlf2smv' : ltl_encoder.ltlf_encode,
+        'circuit': ltl_encoder.ltl_circuit_encode,
     }
     parser = argparse.ArgumentParser(description="""Encode a model with an LTL property into a new
         model where the property has been encoded into a liveness property.
@@ -39,6 +42,7 @@ def parse_args ():
         help="The output file, defaults to the standard output", dest='output')
     parser.add_argument('-n', '--idx', type=int, default=0, metavar='property_idx',
         help="The index of the property to encode")
+    parser.add_argument('-c', '--check-prop', action='store-true')
     res = parser.parse_args()
     res.alg = encoding_algs[res.alg]
     return res
@@ -52,8 +56,14 @@ def main():
     prop = model.get_property(args.idx)
     if not prop.is_ltl():
         raise exceptions.InvalidPropertyTypeError(f"Expected LTL Property, found {prop.prop_type}")
+
     model = args.alg(model, prop.formula)
     model.serialize(args.output)
+
+    if args.check_prop:
+        ic3ia = Ic3iaSolver(model)
+        res = ic3ia.check_properties()
+        print(res)
 
 if __name__ == '__main__':
     main()

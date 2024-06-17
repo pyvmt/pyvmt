@@ -21,12 +21,14 @@ import sys
 from unittest import TestCase
 import pytest
 from pysmt.shortcuts import Symbol, Iff, And, Or, Not, TRUE, FALSE
-from pyvmt.shortcuts import Next, F, X, G, U, R, Y, Z, H, S, O, T
+from pyvmt.shortcuts import Next, F, X, G, U, R, Y, Z, H, S, O, T, N
 from pyvmt.environment import reset_env, get_env
 from pyvmt.operators import HasLtlOperatorsWalker, NNFIzer
 from pyvmt.vmtlib.printers import VmtPrinter, VmtDagPrinter
 from pyvmt.model import Model
-from pyvmt.ltl_encoder import ltl_encode, LtlEncodingWalker, LtlRewriter, LtlCircuitEncodingWalker
+from pyvmt.ltl_encoder import (
+        ltl_encode, ltlf_encode, safetyltl_encode, LtlEncodingWalker, LtlRewriter,
+        LtlCircuitEncodingWalker, LtlfEncodingWalker)
 
 class TestLtl(TestCase):
     '''
@@ -46,6 +48,7 @@ class TestLtl(TestCase):
         self.assertFalse(walker.has_ltl(Iff(x, y)))
         self.assertFalse(walker.has_ltl(x))
         self.assertTrue(walker.has_ltl(mgr.X(x)))
+        self.assertTrue(walker.has_ltl(mgr.N(x)))
         self.assertTrue(walker.has_ltl(mgr.G(x)))
         self.assertTrue(walker.has_ltl(mgr.F(x)))
         self.assertTrue(walker.has_ltl(mgr.R(x, y)))
@@ -79,6 +82,7 @@ class TestLtl(TestCase):
 
         # vmt printers
         self.assertEqual(f_to_str(mgr.X(x), False), '(ltl.X x)')
+        self.assertEqual(f_to_str(mgr.N(x), False), '(ltl.N x)')
         self.assertEqual(f_to_str(mgr.F(x), False), '(ltl.F x)')
         self.assertEqual(f_to_str(mgr.G(x), False), '(ltl.G x)')
         self.assertEqual(f_to_str(mgr.U(x, y), False), '(ltl.U x y)')
@@ -90,6 +94,7 @@ class TestLtl(TestCase):
         self.assertEqual(f_to_str(mgr.S(x, y), False), '(ltl.S x y)')
         self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.T(x, y), False))
         self.assertEqual(f_to_str(mgr.X(x), True), '(let ((.def_0 (ltl.X x))) .def_0)')
+        self.assertEqual(f_to_str(mgr.N(x), True), '(let ((.def_0 (ltl.N x))) .def_0)')
         self.assertEqual(f_to_str(mgr.F(x), True), '(let ((.def_0 (ltl.F x))) .def_0)')
         self.assertEqual(f_to_str(mgr.G(x), True), '(let ((.def_0 (ltl.G x))) .def_0)')
         self.assertEqual(f_to_str(mgr.U(x, y), True), '(let ((.def_0 (ltl.U x y))) .def_0)')
@@ -103,6 +108,7 @@ class TestLtl(TestCase):
 
         # HR printer
         self.assertEqual(mgr.X(x).serialize(), '(X x)')
+        self.assertEqual(mgr.N(x).serialize(), '(X x)')
         self.assertEqual(mgr.F(x).serialize(), '(F x)')
         self.assertEqual(mgr.G(x).serialize(), '(G x)')
         self.assertEqual(mgr.U(x, y).serialize(), '(x U y)')
@@ -125,8 +131,10 @@ class TestLtl(TestCase):
         g = Or(a, c)
         negated_f = Or(Not(a), Next(Not(b)))
         negated_g = And(Not(a), Not(c))
-        self.assertEqual(walker.convert(mgr.Not(mgr.X(f))),
+        self.assertEqual(walker.convert(mgr.Not(mgr.N(f))),
             mgr.X(negated_f))
+        self.assertEqual(walker.convert(mgr.Not(mgr.X(f))),
+            mgr.N(negated_f))
         self.assertEqual(walker.convert(mgr.Not(mgr.G(f))),
             mgr.F(negated_f))
         self.assertEqual(walker.convert(mgr.Not(mgr.G(f))),
@@ -149,7 +157,7 @@ class TestLtl(TestCase):
         self.assertEqual(walker.convert(mgr.Not(mgr.T(f, g))),
             mgr.S(negated_f, negated_g))
 
-        unary_w = [mgr.F, mgr.G, mgr.X, mgr.Next, mgr.Y, mgr.Z, mgr.O, mgr.H]
+        unary_w = [mgr.F, mgr.G, mgr.X, mgr.N, mgr.Next, mgr.Y, mgr.Z, mgr.O, mgr.H]
         binary_w = [mgr.U, mgr.R, mgr.S, mgr.T]
 
         for wrapper in unary_w:
@@ -168,6 +176,7 @@ class TestLtl(TestCase):
         z = Symbol('z')
         f = And(x, y)
         self.assertEqual(rewriter.rewrite(X(f)), X(f))
+        self.assertEqual(rewriter.rewrite(N(f)), Not(X(Not(f))))
         self.assertEqual(rewriter.rewrite(U(z, f)), U(z, f))
         self.assertEqual(rewriter.rewrite(R(z, f)),
             Not(U(Not(z), Not(f)))
@@ -504,6 +513,45 @@ class TestLtl(TestCase):
         self.assertEqual(accept, TRUE())
         self.assertEqual(failed, And(lbls[5], nt))
         self.assertEqual(pending, FALSE())
+
+    def test_ltlf_encode(self):
+        '''Test the ltlf encoding procedure'''
+        a = Symbol('a')
+        model = Model()
+        model.add_state_var(a)
+
+        el0 = X(a)
+        el1 = G(el0)
+        el2 = And(a, el1)
+        el3 = G(a)
+        f = Iff(el2, el2)
+
+        model = Model()
+        model.add_state_var(a)
+        new_model = ltlf_encode(model, f)
+
+        el_n_0 = Symbol('el_n_0')
+        el_r_1 = Symbol('el_u_1')
+
+        print(new_model)
+        self.assertSetEqual(set(new_model.get_trans_constraints()[0:2]),
+            set([
+                Implies(
+                    el_n_0,
+                    Next(Not(a)))
+                , FALSE()]))
+        #        Iff(
+        #            el_x_1,
+        #            Next(And(x, y))
+        #        )
+        #    ]))
+        #self.assertSetEqual(set(new_model.get_init_constraints()[0:1]),
+        #    set([
+        #        Not(And(el_x_1, Or(z, And(x, el_u_0))))
+        #    ])
+        #)
+        #self.assertEqual(new_model.get_live_properties()[0].formula,
+        #    Not(Symbol('J_2')))
 
 if __name__ == '__main__':
     pytest.main(sys.argv)
