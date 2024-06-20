@@ -326,6 +326,21 @@ class Model:
         '''
         return self.add_property(LTL_PROPERTY, formula, property_idx=property_idx)
 
+    def add_ltlf_property(self, formula, property_idx=None):
+        '''Add a new LTLf property to the model.
+        This property can then be used as part of verification.
+        This kind of property can contain LTLf operators.
+        The formula must be of boolean type.
+
+        :param formula: The LTLf property to check
+        :type formula: pysmt.fnode.FNode
+        :param property_idx: The index of the property, if None is passed a new one is generated
+        :type property_idx: int, optional
+        :return: The index of the property, can be used to retrieve the property
+        :rtype: int
+        '''
+        return self.add_property(LTLF_PROPERTY, formula, property_idx=property_idx)
+
     def get_property(self, property_idx):
         '''Get the property identified by property_idx
 
@@ -367,6 +382,15 @@ class Model:
         :rtype: Dict[int, pyvmt.properties.VmtProperty]
         '''
         return { k: x for k, x in self._properties.items() if x.is_ltl() }
+
+    def get_ltlf_properties(self):
+        '''Get a dict with all the model LTLf properties.
+
+        :return: A dict containing the LTLf properties,
+            where the key is the property index and the value is the property
+        :rtype: Dict[int, pyvmt.properties.VmtProperty]
+        '''
+        return { k: x for k, x in self._properties.items() if x.is_ltlf() }
 
     def get_all_properties(self):
         '''Get a dict with all the model properties.

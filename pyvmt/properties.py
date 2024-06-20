@@ -37,7 +37,8 @@ LTL_PROPERTY = 'ltl'
 PROPERTY_TYPES = frozenset([
     INVAR_PROPERTY,
     LIVE_PROPERTY,
-    LTL_PROPERTY
+    LTL_PROPERTY,
+    LTLF_PROPERTY,
 ])
 
 class VmtProperty:
@@ -103,3 +104,8 @@ class VmtProperty:
         '''Returns True if the property is an ltl property, False otherwise
         '''
         return self.prop_type == LTL_PROPERTY
+
+    def is_ltlf(self):
+        '''Returns True if the property is an ltlf property, False otherwise
+        '''
+        return self.prop_type == LTLF_PROPERTY

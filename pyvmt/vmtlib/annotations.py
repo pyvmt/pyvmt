@@ -37,6 +37,9 @@ LIVE_PROPERTY = 'live-property'
 #: Annotation to define an LTL property
 LTL_PROPERTY = 'ltl-property'
 
+#: Annotation to define an LTLf property
+LTLF_PROPERTY = 'ltlf-property'
+
 #: Complete list of VMT-LIB annotations
 VMT_ANNOTATIONS = frozenset([
     NEXT,
@@ -59,6 +62,7 @@ ANNOTS_PROPERTIES_MAP = {
     INVAR_PROPERTY: properties.INVAR_PROPERTY,
     LIVE_PROPERTY: properties.LIVE_PROPERTY,
     LTL_PROPERTY: properties.LTL_PROPERTY,
+    LTLF_PROPERTY: properties.LTLF_PROPERTY,
 }
 
 #: A map between PyVmt property types and the corresponding VMT-LIB annotation
