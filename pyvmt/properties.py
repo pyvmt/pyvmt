@@ -33,6 +33,7 @@ LIVE_PROPERTY = 'live'
 #: LTL property, can contain LTL operators within the formula
 LTL_PROPERTY = 'ltl'
 
+LTLF_PROPERTY = 'ltlf'
 #: Complete list of available property types
 PROPERTY_TYPES = frozenset([
     INVAR_PROPERTY,
@@ -64,7 +65,7 @@ class VmtProperty:
 
         # the formula cannot contain LTL, unless it's an LTL_PROPERTY
         ltlop_walker = get_env().has_ltl_operators_walker
-        if prop_type != LTL_PROPERTY and ltlop_walker.has_ltl(formula):
+        if prop_type != LTL_PROPERTY and prop_type != LTLF_PROPERTY and ltlop_walker.has_ltl(formula):
             raise exceptions.UnexpectedLtlError(
                 f"{prop_type} properties cannot contain LTL, use {LTL_PROPERTY} properties instead")
         self._prop_type = prop_type

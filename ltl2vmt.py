@@ -57,11 +57,11 @@ def main():
     model = read(args.input)
     prop = model.get_property(args.idx)
 
-    if not prop.is_ltl():
+    if not prop.is_ltl() and not prop.is_ltlf():
         raise exceptions.InvalidPropertyTypeError(f"Expected LTL Property, found {prop.prop_type}")
 
     model = args.alg(model, prop.formula)
-    #model.serialize(args.output)
+    model.serialize(args.output)
 
     if args.check_prop:
         print("Checking property: ")
