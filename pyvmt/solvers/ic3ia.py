@@ -28,6 +28,7 @@ from pyvmt.solvers.solver import Solver, Result, Options
 from pyvmt import exceptions
 from pyvmt.properties import LIVE_PROPERTY, INVAR_PROPERTY, LTL_PROPERTY, VmtProperty
 from pyvmt.solvers.traces import Trace
+from pysmt.shortcuts import And
 
 # the possible results from witness computation
 class _Ic3iaWitnessRes(Enum):
@@ -129,10 +130,11 @@ class Ic3iaSolver(Solver):
                 f"Expected witness type, {res_type} found") from err
         #TODO handle different results
         trace = None
+        invar = None
         if res_type == _Ic3iaWitnessRes.COUNTEREXAMPLE:
             trace = self._read_counterexample(solver_out)
         elif res_type == _Ic3iaWitnessRes.INVARIANT:
-            pass
+            invar = self._read_invariant(solver_out)
         elif res_type == _Ic3iaWitnessRes.ERROR:
             pass
         last_line = solver_out.readlines()[-1].strip()
@@ -141,7 +143,7 @@ class Ic3iaSolver(Solver):
             raise exceptions.UnknownSolverAnswerError(
                 f"Solver returned {last_line}")
 
-        return Ic3iaResult(last_line == 'safe', trace=trace)
+        return Ic3iaResult(last_line == 'safe', trace=trace, invar=invar)
 
     def _read_counterexample(self, solver_out):
         # the result is a trace, start reading the result
@@ -191,6 +193,30 @@ class Ic3iaSolver(Solver):
                     "Expected to read newline after assignment")
             trace.create_step(assignments)
         return trace
+
+    def _read_invariant(self, solver_out):
+        parser = SmtLibParser()
+        env = self.model.get_env()
+        mgr = env.formula_manager
+
+        clause_re = re.compile(r'^;; clause (\d+)\n$')
+        parser.cache.update(mgr.symbols)
+        tokens = Tokenizer(solver_out, interactive=True)
+ 
+        clauses = []
+
+        while True:
+            cur = solver_out.readline()
+            if clause_re.match(cur) is None:
+                break
+            full_clause = parser.get_expression(tokens)
+            clauses.append(full_clause)
+
+            if not solver_out.readline() == '\n':
+                raise exceptions.UnknownSolverAnswerError(
+                        "Expected to read newline after assignment")
+
+        return And(clauses)
 
     @classmethod
     def get_supported_logics(cls, options=None):
@@ -442,9 +468,10 @@ class Ic3iaResult(Result):
         Class to store an ic3ia result
     '''
 
-    def __init__(self, is_safe, trace=None):
+    def __init__(self, is_safe, trace=None, invar=None):
         self._is_safe = is_safe
         self._trace = trace
+        self._invar = invar
 
     def is_safe(self):
         return self._is_safe
@@ -454,3 +481,9 @@ class Ic3iaResult(Result):
 
     def has_trace(self):
         return self._trace is not None
+
+    def get_invar(self):
+        return self._invar
+
+    def has_invar(self):
+        return self._invar is not None

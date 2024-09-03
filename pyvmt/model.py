@@ -181,6 +181,14 @@ class Model:
         '''
         return list(self._inputs)
 
+    def get_all_vars(self):
+        '''Returns a list of the model's variables
+
+        :return: A list containing the model variables
+        :rtype: List[pysmt.fnode.FNode]
+        '''
+        return self.get_state_vars() + self.get_input_vars()
+
     def add_invar(self, formula):
         '''Add a new invariant to the model.
         Since an invariant adds both an init and a trans constraint,

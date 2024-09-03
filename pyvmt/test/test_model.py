@@ -22,7 +22,7 @@ from unittest import TestCase
 import pytest
 from pysmt import typing
 from pysmt.shortcuts import Equals, Plus, Int, Symbol, Iff, GE, And, TRUE, Times, Exists
-from pysmt.logics import QF_BOOL, QF_IDL, QF_LIA, QF_UFLIRA, UFLIRA
+from pysmt.logics import QF_BOOL, QF_IDL, QF_LIA, QF_UFLIRA, UFLIRA, QF_LIRA
 from pyvmt.environment import reset_env, get_env
 from pyvmt.model import Model
 from pyvmt import exceptions
@@ -327,7 +327,7 @@ class TestModel(TestCase):
         self.assertEqual(model.get_logic(), QF_LIA)
 
         model.create_state_var('z', typing.REAL)
-        self.assertEqual(model.get_logic(), QF_UFLIRA)
+        self.assertEqual(model.get_logic(), QF_LIRA)
         self.assertEqual(model.get_logic([Exists([y], And(Next(x), Equals(y, Int(0))))]), UFLIRA)
 
         model.add_trans(Exists([y], And(Next(x), Equals(y, Int(0)))))
