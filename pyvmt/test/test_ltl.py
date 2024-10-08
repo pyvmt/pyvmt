@@ -20,7 +20,7 @@ from io import StringIO
 import sys
 from unittest import TestCase
 import pytest
-from pysmt.shortcuts import Symbol, Iff, And, Or, Not, TRUE, FALSE
+from pysmt.shortcuts import Symbol, Iff, And, Or, Not, TRUE, FALSE, Implies
 from pyvmt.shortcuts import Next, F, X, G, U, R, Y, Z, H, S, O, T, N
 from pyvmt.environment import reset_env, get_env
 from pyvmt.operators import HasLtlOperatorsWalker, NNFIzer
@@ -108,7 +108,7 @@ class TestLtl(TestCase):
 
         # HR printer
         self.assertEqual(mgr.X(x).serialize(), '(X x)')
-        self.assertEqual(mgr.N(x).serialize(), '(X x)')
+        self.assertEqual(mgr.N(x).serialize(), '(N x)')
         self.assertEqual(mgr.F(x).serialize(), '(F x)')
         self.assertEqual(mgr.G(x).serialize(), '(G x)')
         self.assertEqual(mgr.U(x, y).serialize(), '(x U y)')
@@ -524,34 +524,36 @@ class TestLtl(TestCase):
         el1 = G(el0)
         el2 = And(a, el1)
         el3 = G(a)
-        f = Iff(el2, el2)
+        f = Iff(el2, el3)
 
         model = Model()
         model.add_state_var(a)
+        # (G X(a) & X (a)) <-> G (a)
         new_model = ltlf_encode(model, f)
 
+        # From el0 X -> N/X (both polarities)
         el_n_0 = Symbol('el_n_0')
-        el_r_1 = Symbol('el_u_1')
+        el_x_4 = Symbol('el_x_4')
 
-        print(new_model)
-        self.assertSetEqual(set(new_model.get_trans_constraints()[0:2]),
+        # From el1 G -> U/R (both polarities)
+        el_u_1 = Symbol('el_u_1')
+        el_r_2 = Symbol('el_r_2')
+
+        # From el3 G -> U/R (both polarities)
+        el_u_3 = Symbol('el_u_3')
+        el_r_5 = Symbol('el_r_5')
+
+        self.assertSetEqual(set(new_model.get_trans_constraints()),
             set([
-                Implies(
-                    el_n_0,
-                    Next(Not(a)))
-                , FALSE()]))
-        #        Iff(
-        #            el_x_1,
-        #            Next(And(x, y))
-        #        )
-        #    ]))
-        #self.assertSetEqual(set(new_model.get_init_constraints()[0:1]),
-        #    set([
-        #        Not(And(el_x_1, Or(z, And(x, el_u_0))))
-        #    ])
-        #)
-        #self.assertEqual(new_model.get_live_properties()[0].formula,
-        #    Not(Symbol('J_2')))
+                Implies( el_n_0, Next(Not(a))),
+                Implies(el_u_1, Next(Or(el_n_0, And(TRUE(), el_u_1)))),
+                Implies(el_r_2, Next(And(a, Or(Not(TRUE()), el_r_2)))),
+                Implies(el_u_3, Next(Or(Not(a), And(TRUE(), el_u_3)))),
+                Implies(el_x_4, Next(a)),
+                Implies(el_r_5, Next(And(el_x_4, Or(Not(TRUE()), el_r_5))))]))
+
+        self.assertEqual(new_model.get_invar_properties()[0].formula,
+                         Or(Or(Or(FALSE(), el_u_1), el_u_3), el_x_4))
 
 if __name__ == '__main__':
     pytest.main(sys.argv)
