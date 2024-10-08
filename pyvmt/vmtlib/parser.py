@@ -33,6 +33,7 @@ class VmtLibParser(SmtLibParser):
                             'ltl.R': self._operator_adapter(mgr.R),
                             'ltl.F': self._operator_adapter(mgr.F),
                             'ltl.X': self._operator_adapter(mgr.X),
+                            'ltl.N': self._operator_adapter(mgr.N),
                             'ltl.H': self._operator_adapter(mgr.H),
                             'ltl.S': self._operator_adapter(mgr.S),
                             'ltl.O': self._operator_adapter(mgr.O),
