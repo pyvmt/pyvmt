@@ -86,7 +86,7 @@ class TestLtl(TestCase):
         self.assertEqual(f_to_str(mgr.F(x), False), '(ltl.F x)')
         self.assertEqual(f_to_str(mgr.G(x), False), '(ltl.G x)')
         self.assertEqual(f_to_str(mgr.U(x, y), False), '(ltl.U x y)')
-        self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.R(x, y), False))
+        self.assertEqual(f_to_str(mgr.R(x, y), False), '(ltl.R x y)')
         self.assertEqual(f_to_str(mgr.Y(x), False), '(ltl.Y x)')
         self.assertEqual(f_to_str(mgr.Z(x), False), '(ltl.Z x)')
         self.assertEqual(f_to_str(mgr.O(x), False), '(ltl.O x)')
@@ -98,7 +98,7 @@ class TestLtl(TestCase):
         self.assertEqual(f_to_str(mgr.F(x), True), '(let ((.def_0 (ltl.F x))) .def_0)')
         self.assertEqual(f_to_str(mgr.G(x), True), '(let ((.def_0 (ltl.G x))) .def_0)')
         self.assertEqual(f_to_str(mgr.U(x, y), True), '(let ((.def_0 (ltl.U x y))) .def_0)')
-        self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.R(x, y), True))
+        self.assertEqual(f_to_str(mgr.R(x, y), True), '(let ((.def_0 (ltl.R x y))) .def_0)')
         self.assertEqual(f_to_str(mgr.Y(x), True), '(let ((.def_0 (ltl.Y x))) .def_0)')
         self.assertEqual(f_to_str(mgr.Z(x), True), '(let ((.def_0 (ltl.Z x))) .def_0)')
         self.assertEqual(f_to_str(mgr.O(x), True), '(let ((.def_0 (ltl.O x))) .def_0)')
@@ -324,7 +324,6 @@ class TestLtl(TestCase):
         walker = LtlCircuitEncodingWalker(f_past)
         subformulae = walker.get_subformulae()
         lbls = [x for x, _ in subformulae]
-        print(subformulae)
         self.assertListEqual(subformulae, [
             ( lbls[0], Or(y, z), ),
             ( lbls[1], S(lbls[0], y), ),
