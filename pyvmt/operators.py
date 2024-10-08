@@ -441,7 +441,7 @@ class NNFIzer(pysmt.rewritings.NNFizer):
         if s.node_type() == LTL_X:
             return self.mgr.N(args[0])
         if s.node_type() == LTL_N:
-            return self.mrg.X(args[0])
+            return self.mgr.X(args[0])
         if s.node_type() == LTL_G:
             return self.mgr.F(args[0])
         if s.node_type() == LTL_F:
