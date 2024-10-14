@@ -17,16 +17,17 @@ import sys
 import argparse
 from pyvmt.vmtlib.reader import read
 from pyvmt.model import Model
-from pyvmt.ltl_encoder import ltl_encode, ltl_circuit_encode, ltlf_encode
+from pyvmt.ltl_encoder import ltl_encode, ltl_circuit_encode, ltlf_encode, safetyltl_encode
 from pyvmt import exceptions
+from pyvmt.solvers.ic3ia import Ic3iaSolver
 
 def parse_args ():
     '''Defines and parses the arguments'''
     encoding_algs = {
-        'ltl2smv': ltl_encoder.ltl_encode,
-        'safetyltl2smv' : ltl_encoder.safetyltl_encode,
-        'ltlf2smv' : ltl_encoder.ltlf_encode,
-        'circuit': ltl_encoder.ltl_circuit_encode,
+        'ltl2smv': ltl_encode,
+        'safetyltl2smv' : safetyltl_encode,
+        'ltlf2smv' : ltlf_encode,
+        'circuit': ltl_circuit_encode,
     }
     parser = argparse.ArgumentParser(description="""Encode a model with an LTL property into a new
         model where the property has been encoded into a liveness property.
@@ -42,7 +43,7 @@ def parse_args ():
         help="The output file, defaults to the standard output", dest='output')
     parser.add_argument('-n', '--idx', type=int, default=0, metavar='property_idx',
         help="The index of the property to encode")
-    parser.add_argument('-c', '--check-prop', action='store-true')
+    parser.add_argument('-c', '--check-prop', action='store_true')
     res = parser.parse_args()
     res.alg = encoding_algs[res.alg]
     return res
@@ -54,7 +55,7 @@ def main():
     args = parse_args()
     model = read(args.input)
     prop = model.get_property(args.idx)
-    if not prop.is_ltl():
+    if not prop.is_ltl() and not prop.is_ltlf():
         raise exceptions.InvalidPropertyTypeError(f"Expected LTL Property, found {prop.prop_type}")
 
     model = args.alg(model, prop.formula)
@@ -62,8 +63,14 @@ def main():
 
     if args.check_prop:
         ic3ia = Ic3iaSolver(model)
-        res = ic3ia.check_properties()
-        print(res)
+        res = ic3ia.check_property_idx(0)
+
+        if res.is_safe():
+            inv = res.get_invar()
+            print(f"Property {args.idx} is safe.")
+            print("Ic3ia returns the inductive invariant: %s" % inv.serialize())
+        else:
+            print(f"Property {args.idx} is unsafe.")
 
 if __name__ == '__main__':
     main()
