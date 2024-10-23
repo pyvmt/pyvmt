@@ -19,12 +19,13 @@
 from pysmt.walkers import handles, IdentityDagWalker
 import pysmt.operators as op
 from pyvmt.operators import (
-    LTL_F, LTL_G, LTL_R, LTL_U, LTL_X, FUTURE_LTL,
+    LTL_F, LTL_G, LTL_R, LTL_U, LTL_X, LTL_N, FUTURE_LTL,
     LTL_O, LTL_H, LTL_T, LTL_S, LTL_Y, LTL_Z, PAST_LTL,
-    ALL_LTL, NNFIzer
+    ALL_LTL, NNFIzer, XWeakener
 )
 from pyvmt.model import Model
 from pyvmt.environment import get_env
+from pyvmt.operators import IsSafetyLtl
 
 # pylint: disable=unused-argument
 
@@ -71,6 +72,11 @@ class LtlRewriter(IdentityDagWalker):
         assert len(args) == 1
         return self.mgr.Not(self.mgr.S(self.mgr.TRUE(), self.mgr.Not(args[0])))
 
+    def walk_ltl_n(self, formula, args, **kwargs):
+        '''Nf -> ¬(X¬f)'''
+        assert len(args) == 1
+        return self.mgr.Not(self.mgr.X(self.mgr.Not(args[0])))
+
 class LtlEncodingWalker(IdentityDagWalker):
     '''Walker to find the elementary formulae composing an LTL formula, and
     the associated sat values.
@@ -93,7 +99,7 @@ class LtlEncodingWalker(IdentityDagWalker):
         '''Get the sat value for a formula.'''
         return self.walk(formula)
 
-    @handles(LTL_F, LTL_G, LTL_R, LTL_Z, LTL_O, LTL_H, LTL_T)
+    @handles(LTL_F, LTL_G, LTL_R, LTL_Z, LTL_O, LTL_H, LTL_T, LTL_N)
     def walk_ltl_unsupported(self, formula, args, **kwargs):
         '''Raise an error on use of unsupported operator'''
         raise NotImplementedError(
@@ -453,3 +459,144 @@ def ltl_circuit_encode (model, formula):
 
     model.add_live_property(mgr.Not(accept))
     return model
+
+class LtlfEncodingWalker(LtlEncodingWalker):
+    '''Walker to find the elementary formulae composing an LTLf formula, and
+    the associated sat values.
+
+    The walker assumes that the formula has already been rewritten in terms
+    of X, Y, U, and Not, using the LtlRewriter and then NNFized with NNFizer.
+    '''
+
+    def __init__(self, formula, env=None):
+        super().__init__(formula, env=env)
+
+    @handles(LTL_F, LTL_G, LTL_O, LTL_H)
+    def walk_ltl_unsupported(self, formula, args, **kwargs):
+        '''Raise an error on use of unsupported operator'''
+        raise NotImplementedError(
+            f"Formula must not contain {formula.node_type} operators, "\
+            "please, use the LtlRewriter to leave only U and X LTL operators.")
+
+    def walk_ltl_n(self, formula, args, **kwargs):
+        '''
+        el(X f) = el(f) union { X f }
+        sat(X f) = el(X f)
+        '''
+        assert len(args) == 1
+        if formula not in self._el_map:
+            self._el_map[formula] = self.mgr.FreshSymbol(formula.get_type(), 'el_n_%d')
+        return self._el_map[formula]
+
+    def walk_ltl_z(self, formula, args, **Kwargs):
+        '''
+        el(Z f) = el(f) union { Z f}
+        sat(Z f) = el(Z f)
+        '''
+        assert len(args) == 1
+        if formula not in self._el_map:
+            self._el_map[formula] = self.mgr.FreshSymbol(formula.get_type(), 'el_z_%d')
+        return self._el_map[formula]
+
+    def walk_ltl_r(self, formula, args, **kwargs):
+        '''
+        el(f R g) = el(f) union el(g) union { N(f R g) }
+        sat(f R g) = sat(g) & (sat(f) | el(N(f R g)))
+        '''
+        assert len(args) == 2
+        n_formula = self.mgr.N(formula)
+        if n_formula not in self._el_map:
+            stvar = self.mgr.FreshSymbol(formula.get_type(), 'el_r_%d')
+            self._el_map[n_formula] = stvar
+        return self.mgr.And(args[1], self.mgr.Or(args[0], self._el_map[n_formula]))
+
+    def walk_ltl_t(self, formula, args, **kwargs):
+        '''
+        el(f T g) = el(f) union el(g) union { Z(f T g) }
+        sat(f T g) = sat(g) & (sat(f) | el(Z(f T g)))
+        '''
+        assert len(args) == 2
+        z_formula = self.mgr.Z(formula)
+        if y_formula not in self._el_map:
+            stvar = self.mgr.FreshSymbol(formula.get_type(), 'el_t_%d')
+            self._el_map[y_formula] = stvar
+        return self.mgr.And(args[1], self.mgr.Or(args[0], self._el_map[z_formula]))
+
+def ltlf_encode(model, formula):
+    '''Encodes an ltlf property into a model and returns the new model
+
+    :param model: The model on which to encode the property
+    :type model: pyvmt.model.Model
+    :param prop: The property to encode, must be of type LTL
+    :type prop: pyvmt.properties.Property
+    :return: A new model with the added invar property at index 0
+    :rtype: pyvmt.model.Model
+    '''
+    env = model.get_env()
+    mgr = env.formula_manager
+    # rewrite the formula in terms of X and U operators
+    formula = LtlRewriter(env=model.get_env()).rewrite(mgr.Not(formula))
+    # Use negative normal form on the resulting formula
+    formula = NNFIzer(environment=env).convert(formula)
+
+    # get the elementary subformulae
+    el_walker = LtlfEncodingWalker(formula, env=model.get_env())
+    el_map = el_walker.get_el_map()
+
+    # create a new model with the same variables and constraints
+    model = _copy_model(model)
+
+    x_vars = []
+    for el_, stvar in el_map.items():
+        # add variables for the tableau
+        model.add_state_var(stvar)
+        sat = el_walker.get_sat(el_.arg(0))
+        if el_.node_type() in FUTURE_LTL:
+            # define how the variables evolve using implication
+            model.add_trans(mgr.Implies(stvar, mgr.Next(sat)))
+            # Strong proof obligations must be falsified to reach the counter-example
+            if el_.node_type() == LTL_X:
+                x_vars.append(stvar)
+        else:
+            # Past case: monitor is updated with the current value
+            assert(el_.node_type() in PAST_LTL)
+            # TODO[AB]: Check this!!
+            model.add_trans(mgr.EqualsOrIff(mgr.Next(stvar), sat))
+
+    model.add_init(el_walker.get_sat(formula))
+
+    # compute invariant (bigvee_{v_{X phi}} v_{X phi})
+    invar = mgr.FALSE()
+    for v_x in x_vars:
+        invar = mgr.Or(invar, v_x)
+
+    model.add_invar_property(invar)
+
+    return model
+
+def safetyltl_encode(model, formula):
+    '''Encodes a safety ltl property into a model and returns the new model
+
+    We assume that formula does not contain U/F operators occuring positively
+
+    :param model: The model on which to encode the property
+    :type model: pyvmt.model.Model
+    :param prop: The property to encode, must be of type LTL
+    :type prop: pyvmt.properties.Property
+    :return: A new model with the added invar property at index 0. None if the
+    property is not in safetyLTL
+    :rtype: pyvmt.model.Model
+    '''
+    env = model.get_env()
+
+    # Use negative normal form on the resulting formula
+    formula = NNFIzer(environment=env).convert(formula)
+    # If the formula is NOT safetyLTL the encoding is not correct
+    if not IsSafetyLtl().is_safety_ltl(formula):
+        return None
+
+    # Weaken next from safety formula
+    formula = XWeakener(env).remove_strong_next(formula)
+
+    # Do the actual encoding using LTLf encoder
+    return ltlf_encode(model, formula)

@@ -20,13 +20,15 @@ from io import StringIO
 import sys
 from unittest import TestCase
 import pytest
-from pysmt.shortcuts import Symbol, Iff, And, Or, Not, TRUE, FALSE
-from pyvmt.shortcuts import Next, F, X, G, U, R, Y, Z, H, S, O, T
+from pysmt.shortcuts import Symbol, Iff, And, Or, Not, TRUE, FALSE, Implies
+from pyvmt.shortcuts import Next, F, X, G, U, R, Y, Z, H, S, O, T, N
 from pyvmt.environment import reset_env, get_env
 from pyvmt.operators import HasLtlOperatorsWalker, NNFIzer
 from pyvmt.vmtlib.printers import VmtPrinter, VmtDagPrinter
 from pyvmt.model import Model
-from pyvmt.ltl_encoder import ltl_encode, LtlEncodingWalker, LtlRewriter, LtlCircuitEncodingWalker
+from pyvmt.ltl_encoder import (
+        ltl_encode, ltlf_encode, safetyltl_encode, LtlEncodingWalker, LtlRewriter,
+        LtlCircuitEncodingWalker, LtlfEncodingWalker)
 
 class TestLtl(TestCase):
     '''
@@ -46,10 +48,12 @@ class TestLtl(TestCase):
         self.assertFalse(walker.has_ltl(Iff(x, y)))
         self.assertFalse(walker.has_ltl(x))
         self.assertTrue(walker.has_ltl(mgr.X(x)))
+        self.assertTrue(walker.has_ltl(mgr.N(x)))
         self.assertTrue(walker.has_ltl(mgr.G(x)))
         self.assertTrue(walker.has_ltl(mgr.F(x)))
         self.assertTrue(walker.has_ltl(mgr.R(x, y)))
         self.assertTrue(walker.has_ltl(mgr.U(x, y)))
+        self.assertTrue(walker.has_ltl(mgr.W(x, y)))
         self.assertTrue(walker.has_ltl(mgr.Y(x)))
         self.assertTrue(walker.has_ltl(mgr.Z(x)))
         self.assertTrue(walker.has_ltl(mgr.H(x)))
@@ -79,10 +83,12 @@ class TestLtl(TestCase):
 
         # vmt printers
         self.assertEqual(f_to_str(mgr.X(x), False), '(ltl.X x)')
+        self.assertEqual(f_to_str(mgr.N(x), False), '(ltl.N x)')
         self.assertEqual(f_to_str(mgr.F(x), False), '(ltl.F x)')
         self.assertEqual(f_to_str(mgr.G(x), False), '(ltl.G x)')
         self.assertEqual(f_to_str(mgr.U(x, y), False), '(ltl.U x y)')
-        self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.R(x, y), False))
+        self.assertEqual(f_to_str(mgr.W(x, y), False), '(ltl.R y (or x y))')
+        self.assertEqual(f_to_str(mgr.R(x, y), False), '(ltl.R x y)')
         self.assertEqual(f_to_str(mgr.Y(x), False), '(ltl.Y x)')
         self.assertEqual(f_to_str(mgr.Z(x), False), '(ltl.Z x)')
         self.assertEqual(f_to_str(mgr.O(x), False), '(ltl.O x)')
@@ -90,10 +96,11 @@ class TestLtl(TestCase):
         self.assertEqual(f_to_str(mgr.S(x, y), False), '(ltl.S x y)')
         self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.T(x, y), False))
         self.assertEqual(f_to_str(mgr.X(x), True), '(let ((.def_0 (ltl.X x))) .def_0)')
+        self.assertEqual(f_to_str(mgr.N(x), True), '(let ((.def_0 (ltl.N x))) .def_0)')
         self.assertEqual(f_to_str(mgr.F(x), True), '(let ((.def_0 (ltl.F x))) .def_0)')
         self.assertEqual(f_to_str(mgr.G(x), True), '(let ((.def_0 (ltl.G x))) .def_0)')
         self.assertEqual(f_to_str(mgr.U(x, y), True), '(let ((.def_0 (ltl.U x y))) .def_0)')
-        self.assertRaises(NotImplementedError, lambda: f_to_str(mgr.R(x, y), True))
+        self.assertEqual(f_to_str(mgr.R(x, y), True), '(let ((.def_0 (ltl.R x y))) .def_0)')
         self.assertEqual(f_to_str(mgr.Y(x), True), '(let ((.def_0 (ltl.Y x))) .def_0)')
         self.assertEqual(f_to_str(mgr.Z(x), True), '(let ((.def_0 (ltl.Z x))) .def_0)')
         self.assertEqual(f_to_str(mgr.O(x), True), '(let ((.def_0 (ltl.O x))) .def_0)')
@@ -103,9 +110,11 @@ class TestLtl(TestCase):
 
         # HR printer
         self.assertEqual(mgr.X(x).serialize(), '(X x)')
+        self.assertEqual(mgr.N(x).serialize(), '(N x)')
         self.assertEqual(mgr.F(x).serialize(), '(F x)')
         self.assertEqual(mgr.G(x).serialize(), '(G x)')
         self.assertEqual(mgr.U(x, y).serialize(), '(x U y)')
+        self.assertEqual(mgr.W(x, y).serialize(), '(y R (x | y))')
         self.assertEqual(mgr.R(x, y).serialize(), '(x R y)')
         self.assertEqual(mgr.Y(x).serialize(), '(Y x)')
         self.assertEqual(mgr.Z(x).serialize(), '(Z x)')
@@ -125,8 +134,10 @@ class TestLtl(TestCase):
         g = Or(a, c)
         negated_f = Or(Not(a), Next(Not(b)))
         negated_g = And(Not(a), Not(c))
-        self.assertEqual(walker.convert(mgr.Not(mgr.X(f))),
+        self.assertEqual(walker.convert(mgr.Not(mgr.N(f))),
             mgr.X(negated_f))
+        self.assertEqual(walker.convert(mgr.Not(mgr.X(f))),
+            mgr.N(negated_f))
         self.assertEqual(walker.convert(mgr.Not(mgr.G(f))),
             mgr.F(negated_f))
         self.assertEqual(walker.convert(mgr.Not(mgr.G(f))),
@@ -149,7 +160,7 @@ class TestLtl(TestCase):
         self.assertEqual(walker.convert(mgr.Not(mgr.T(f, g))),
             mgr.S(negated_f, negated_g))
 
-        unary_w = [mgr.F, mgr.G, mgr.X, mgr.Next, mgr.Y, mgr.Z, mgr.O, mgr.H]
+        unary_w = [mgr.F, mgr.G, mgr.X, mgr.N, mgr.Next, mgr.Y, mgr.Z, mgr.O, mgr.H]
         binary_w = [mgr.U, mgr.R, mgr.S, mgr.T]
 
         for wrapper in unary_w:
@@ -168,6 +179,7 @@ class TestLtl(TestCase):
         z = Symbol('z')
         f = And(x, y)
         self.assertEqual(rewriter.rewrite(X(f)), X(f))
+        self.assertEqual(rewriter.rewrite(N(f)), Not(X(Not(f))))
         self.assertEqual(rewriter.rewrite(U(z, f)), U(z, f))
         self.assertEqual(rewriter.rewrite(R(z, f)),
             Not(U(Not(z), Not(f)))
@@ -315,7 +327,6 @@ class TestLtl(TestCase):
         walker = LtlCircuitEncodingWalker(f_past)
         subformulae = walker.get_subformulae()
         lbls = [x for x, _ in subformulae]
-        print(subformulae)
         self.assertListEqual(subformulae, [
             ( lbls[0], Or(y, z), ),
             ( lbls[1], S(lbls[0], y), ),
@@ -504,6 +515,76 @@ class TestLtl(TestCase):
         self.assertEqual(accept, TRUE())
         self.assertEqual(failed, And(lbls[5], nt))
         self.assertEqual(pending, FALSE())
+
+    def test_ltlf_encode(self):
+        '''Test the ltlf encoding procedure'''
+        a = Symbol('a')
+        model = Model()
+        model.add_state_var(a)
+
+        el0 = X(a)
+        el1 = G(el0)
+        el2 = And(a, el1)
+        el3 = G(a)
+        f = Iff(el2, el3)
+
+        model = Model()
+        model.add_state_var(a)
+        # (G X(a) & X (a)) <-> G (a)
+        new_model = ltlf_encode(model, f)
+
+        # From el0 X -> N/X (both polarities)
+        el_n_0 = Symbol('el_n_0')
+        el_x_4 = Symbol('el_x_4')
+
+        # From el1 G -> U/R (both polarities)
+        el_u_1 = Symbol('el_u_1')
+        el_r_2 = Symbol('el_r_2')
+
+        # From el3 G -> U/R (both polarities)
+        el_u_3 = Symbol('el_u_3')
+        el_r_5 = Symbol('el_r_5')
+
+        self.assertSetEqual(set(new_model.get_trans_constraints()),
+            set([
+                Implies( el_n_0, Next(Not(a))),
+                Implies(el_u_1, Next(Or(el_n_0, And(TRUE(), el_u_1)))),
+                Implies(el_r_2, Next(And(a, Or(Not(TRUE()), el_r_2)))),
+                Implies(el_u_3, Next(Or(Not(a), And(TRUE(), el_u_3)))),
+                Implies(el_x_4, Next(a)),
+                Implies(el_r_5, Next(And(el_x_4, Or(Not(TRUE()), el_r_5))))]))
+
+        self.assertEqual(new_model.get_invar_properties()[0].formula,
+                         Or(Or(Or(FALSE(), el_u_1), el_u_3), el_x_4))
+
+    def test_safetyltl_encode(self):
+        ''' Test the safetyLTL encoding procedure '''
+        a = Symbol('a')
+        model = Model()
+        model.add_state_var(a)
+
+        el0 = X(a)
+        f = G(el0)
+
+        new_model = safetyltl_encode(model, f)
+
+        el_x_0 = Symbol('el_x_0')
+        el_u_1 = Symbol('el_u_1')
+
+        self.assertSetEqual(set(new_model.get_trans_constraints()),
+            set([
+                Implies(el_x_0, Next(Not(a))),
+                Implies(el_u_1, Next(Or(el_x_0, And(TRUE(), el_u_1))))]))
+
+        self.assertEqual(new_model.get_invar_properties()[0].formula,
+                         Or(Or(FALSE(), el_x_0), el_u_1))
+
+        non_safe_f = F(f)
+
+        unsafe_model = safetyltl_encode(model, non_safe_f)
+        self.assertEqual(unsafe_model, None)
+
+
 
 if __name__ == '__main__':
     pytest.main(sys.argv)

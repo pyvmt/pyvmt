@@ -18,6 +18,7 @@ import argparse
 from pyvmt.vmtlib.reader import read
 from pyvmt.model import Model
 from pyvmt.ltl_encoder import ltl_encode, ltl_circuit_encode, ltlf_encode, safetyltl_encode
+from pyvmt.operators import IsSafetyLtl
 from pyvmt import exceptions
 from pyvmt.solvers.ic3ia import Ic3iaSolver
 
@@ -55,6 +56,7 @@ def main():
     args = parse_args()
     model = read(args.input)
     prop = model.get_property(args.idx)
+
     if not prop.is_ltl() and not prop.is_ltlf():
         raise exceptions.InvalidPropertyTypeError(f"Expected LTL Property, found {prop.prop_type}")
 
@@ -62,15 +64,12 @@ def main():
     model.serialize(args.output)
 
     if args.check_prop:
+        print("Checking property: ")
+        print(prop.formula)
+        assert(IsSafetyLtl().is_safety_ltl(prop.formula) or args.alg != safetyltl_encode)
         ic3ia = Ic3iaSolver(model)
-        res = ic3ia.check_property_idx(0)
-
-        if res.is_safe():
-            inv = res.get_invar()
-            print(f"Property {args.idx} is safe.")
-            print("Ic3ia returns the inductive invariant: %s" % inv.serialize())
-        else:
-            print(f"Property {args.idx} is unsafe.")
+        res = ic3ia.check_properties()
+        print(res[0].is_safe())
 
 if __name__ == '__main__':
     main()
