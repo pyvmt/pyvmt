@@ -29,6 +29,7 @@ from pysmt.operators import new_node_type
 from pysmt.type_checker import SimpleTypeChecker
 from pysmt.oracles import FreeVarsOracle, TheoryOracle, QuantifierOracle
 from pysmt.walkers import handles, IdentityDagWalker, DagWalker
+from pysmt.shortcuts import Or
 import pysmt.rewritings
 import pysmt.formula
 import pysmt.printers
@@ -119,6 +120,12 @@ class FormulaManager(pysmt.formula.FormulaManager):
             left R right
         '''
         return self.create_node(node_type=LTL_R, args=(left, right))
+
+    def W(self, left, right):
+        '''Creates an expression of the form:
+            left W right via release (R) as right R (left | right)
+        '''
+        return self.R(right, Or(left, right))
 
     def Y(self, formula):
         '''Creates an expression of the form:

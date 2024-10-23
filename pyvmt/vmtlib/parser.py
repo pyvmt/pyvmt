@@ -30,7 +30,9 @@ class VmtLibParser(SmtLibParser):
         mgr = self.env.formula_manager
         ltl_interpreted = { 'ltl.G': self._operator_adapter(mgr.G),
                             'ltl.U': self._operator_adapter(mgr.U),
+                            'ltl.W': self._operator_adapter(mgr.W),
                             'ltl.R': self._operator_adapter(mgr.R),
+                            'ltl.V': self._operator_adapter(mgr.R),
                             'ltl.F': self._operator_adapter(mgr.F),
                             'ltl.X': self._operator_adapter(mgr.X),
                             'ltl.N': self._operator_adapter(mgr.N),
