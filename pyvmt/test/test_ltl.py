@@ -554,5 +554,34 @@ class TestLtl(TestCase):
         self.assertEqual(new_model.get_invar_properties()[0].formula,
                          Or(Or(Or(FALSE(), el_u_1), el_u_3), el_x_4))
 
+    def test_safetyltl_encode(self):
+        ''' Test the safetyLTL encoding procedure '''
+        a = Symbol('a')
+        model = Model()
+        model.add_state_var(a)
+
+        el0 = X(a)
+        f = G(el0)
+
+        new_model = safetyltl_encode(model, f)
+
+        el_x_0 = Symbol('el_x_0')
+        el_u_1 = Symbol('el_u_1')
+
+        self.assertSetEqual(set(new_model.get_trans_constraints()),
+            set([
+                Implies(el_x_0, Next(Not(a))),
+                Implies(el_u_1, Next(Or(el_x_0, And(TRUE(), el_u_1))))]))
+
+        self.assertEqual(new_model.get_invar_properties()[0].formula,
+                         Or(Or(FALSE(), el_x_0), el_u_1))
+
+        non_safe_f = F(f)
+
+        unsafe_model = safetyltl_encode(model, non_safe_f)
+        self.assertEqual(unsafe_model, None)
+
+
+
 if __name__ == '__main__':
     pytest.main(sys.argv)
