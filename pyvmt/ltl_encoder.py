@@ -25,6 +25,7 @@ from pyvmt.operators import (
 )
 from pyvmt.model import Model
 from pyvmt.environment import get_env
+from pyvmt.operators import IsSafetyLtl
 
 # pylint: disable=unused-argument
 
@@ -582,14 +583,20 @@ def safetyltl_encode(model, formula):
     :type model: pyvmt.model.Model
     :param prop: The property to encode, must be of type LTL
     :type prop: pyvmt.properties.Property
-    :return: A new model with the added invar property at index 0
+    :return: A new model with the added invar property at index 0. None if the
+    property is not in safetyLTL
     :rtype: pyvmt.model.Model
     '''
     env = model.get_env()
+
     # Use negative normal form on the resulting formula
     formula = NNFIzer(environment=env).convert(formula)
+    # If the formula is NOT safetyLTL the encoding is not correct
+    if not IsSafetyLtl().is_safety_ltl(formula):
+        return None
+
     # Weaken next from safety formula
-    formula = XWeakener(env).remove_weak_next(formula)
+    formula = XWeakener(env).remove_strong_next(formula)
 
     # Do the actual encoding using LTLf encoder
     return ltlf_encode(model, formula)
