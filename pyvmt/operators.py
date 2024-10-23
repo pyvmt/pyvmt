@@ -332,22 +332,22 @@ class HasNextOperatorWalker(DagWalker):
 class IsSafetyLtl(DagWalker):
     '''Returns whether the formula is in the safetyLTL fragment
 
-    (Assumes that the formula is normalized)
+        (Assumes that the formula is in nnf)
     '''
     def __init__(self, env=None):
         super().__init__(env=env)
 
     @handles(*op.ALL_TYPES, LTL_U, LTL_F)
     def walk_live(self, formula, args, **kwargs):
-        return False
+        return True
 
-    @handles(*op.ALL_TYPES, *ALL_LTL)
+    @handles(*op.ALL_TYPES, *PAST_LTL, LTL_G, LTL_R, LTL_X, LTL_N, NEXT)
     def walk_other(self, formula, *args, **kwargs):
         '''Any operator which is not U/F will return True if any children nodes returns True'''
         return self.walk_any(formula, *args, **kwargs)
 
     def is_safety_ltl(self, formula):
-        return self.walk(formula)
+        return not self.walk(formula)
 
 class NextPusher(IdentityDagWalker):
     '''Walker to rewrite a formula moving all of the Next operators.
@@ -477,7 +477,7 @@ class XWeakener(IdentityDagWalker):
     def __init__(self, env=None):
         super().__init__(env=env)
 
-    def remove_weak_next(self, formula):
+    def remove_strong_next(self, formula):
         '''Rewrite a formula containing LTL replacing strong next operator (X) with
         weak next (N). It should be noted that the translation alters the semantics
         of the formula when it is interpreted over finite traces. Infite semantics
@@ -487,4 +487,4 @@ class XWeakener(IdentityDagWalker):
     def walk_ltl_x(self, formula, args, **kwargs):
         ''' X phi -> N phi'''
         assert(len(args) == 1)
-        return self.mgr.X(args[1])
+        return self.mgr.N(args[0])
