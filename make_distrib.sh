@@ -1,7 +1,6 @@
 #!/bin/bash
 
+# Install the python `build` module if it is missing
+#
 # Create package files
-python setup.py sdist --format=gztar
-
-# Wheel file
-python setup.py bdist_wheel --python-tag py3
+python -m build
