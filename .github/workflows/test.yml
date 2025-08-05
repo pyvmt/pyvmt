@@ -18,10 +18,10 @@ jobs:
         run: apt-get install git
       
       - name: Install Python dependencies
-        run: python3 -m pip install -r requirements.txt
+        run: python3 -m pip install build pytest
       
       - name: Install Python dev dependencies
-        run: python3 -m pip install -r dev-requirements.txt
+        run: python3 -m pip install .
 
       - name: Run tests
         run: bash run_tests.sh

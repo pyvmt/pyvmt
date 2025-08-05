@@ -21,7 +21,7 @@ classifiers = [
 ]
 license = "Apache-2.0"
 dependencies = [
-    "PySMT>=0.9.1.dev159",
+    "PySMT>=0.9.6",
 ]
 
 [project.urls]

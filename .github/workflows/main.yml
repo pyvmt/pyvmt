@@ -19,7 +19,7 @@ jobs:
         run: apt-get install git
       
       - name: Install Python dependencies
-        run: python3 -m pip install build pytest
+        run: python3 -m pip install build pytest twine
       
       - name: Install Python dev dependencies
         run: python3 -m pip install .
@@ -40,5 +40,6 @@ jobs:
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1.11
         with:
+          attestations: false
           user: __token__
           password: ${{ secrets.PYPI_API_TOKEN }}
