@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=42", "setuptools-scm>8.1"]
+requires = ["setuptools>=70", "setuptools-scm>8.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
@@ -8,14 +8,14 @@ build-backend = "setuptools.build_meta"
 name = "pyvmt"
 dynamic = ["version"]
 authors = [
-  { name="PyVmt team", email="agirardi@fbk.eu" },
+  { name="PyVmt team", email="fm@fbk.eu" },
 ]
 maintainers = [
-  { name="Alberto Griggio", email = "agirardi@fbk.eu" },
+  { name="Alberto Griggio", email = "griggio@fbk.eu" },
 ]
 description = "Library to create and check finite and infinite state transition systems"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
 ]
@@ -25,11 +25,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://pysmt.readthedocs.io/en/latest/"
-Documentation = "https://pysmt.readthedocs.io/en/latest/api_ref.html"
+Homepage = "http://vmt-lib.org"
 Repository = "https://github.com/pyvmt/pyvmt.git"
 Issues = "https://github.com/pyvmt/pyvmt/issues"
-Changelog = "https://pysmt.readthedocs.io/en/latest/CHANGES.html"
 
 [dependency-groups]
 dev = [
