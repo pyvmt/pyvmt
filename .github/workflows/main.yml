@@ -19,16 +19,16 @@ jobs:
         run: apt-get install git
       
       - name: Install Python dependencies
-        run: python3 -m pip install -r requirements.txt
+        run: python3 -m pip install build pytest
       
       - name: Install Python dev dependencies
-        run: python3 -m pip install -r dev-requirements.txt
-
-      - name: Run tests
-        run: bash run_tests.sh
+        run: python3 -m pip install .
 
       - name: Build
         run: bash make_distrib.sh
+
+      - name: Run tests
+        run: bash run_tests.sh
 
       # - name: Publish package to TestPyPI
       #   uses: pypa/gh-action-pypi-publish@release/v1
